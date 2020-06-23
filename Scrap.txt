@@ -1,0 +1,3273 @@
+int dbScanNoise::scan(const cv::Mat& mat, const cv::Rect& bounds, cv::Mat* labelsMat, float toleranceValue, int minCluster, int* duration)
+{
+	cv::UMat inMatU = mat(bounds).getUMat(cv::ACCESS_READ);
+
+	int boundswidth = bounds.width;
+	int boundsheight = bounds.height;
+
+	// set labels to unclassified
+	if (labelsMat->empty()) {
+		*labelsMat = cv::Mat(boundsheight, boundswidth, CV_32SC1, cv::Scalar(UNCLASSIFIED));
+	}
+	else if (labelsMat->rows != boundsheight || labelsMat->cols != boundswidth || labelsMat->type() != CV_32SC1) {
+		labelsMat->release();
+		*labelsMat = cv::Mat(boundsheight, boundswidth, CV_32SC1, cv::Scalar(UNCLASSIFIED));
+	}
+	else {
+		labelsMat->setTo(UNCLASSIFIED);
+	}
+
+	cv::Point point((int)((float)boundswidth / 2.0f), (int)((float)boundsheight / 2.0f));
+
+	int clusterID = 0;
+
+	auto tstart = std::chrono::high_resolution_clock::now();
+
+
+	float data[50000];
+
+	std::vector<float> matFloatVec;
+	matFloatVec.reserve(mat.rows * mat.cols * 5);
+	for (int y = 0; y < mat.rows; y++) {
+		for (int x = 0; x < mat.cols; x++) {
+			//matFloatVec.push_back((float)x / (float)(mat.cols));
+			//matFloatVec.push_back((float)y / (float)(mat.rows));
+			//matFloatVec.push_back((float)(mat.at<cv::Vec3b>(y, x))[0] / 255.0f);
+			//matFloatVec.push_back((float)(mat.at<cv::Vec3b>(y, x))[1] / 255.0f);
+			//matFloatVec.push_back((float)(mat.at<cv::Vec3b>(y, x))[2] / 255.0f);
+
+			int index = (y * mat.cols) + x;
+			data[index] = (float)x / (float)(mat.cols);
+			data[index + 1] = (float)y / (float)(mat.rows);
+			data[index + 2] = (float)(mat.at<cv::Vec3b>(y, x))[0] / 255.0f;
+			data[index + 3] = (float)(mat.at<cv::Vec3b>(y, x))[1] / 255.0f;
+			data[index + 4] = (float)(mat.at<cv::Vec3b>(y, x))[2] / 255.0f;
+		}
+	}
+
+	daal::services::SharedPtr<daal::data_management::interface1::HomogenNumericTable<> > dataTable = daal::data_management::interface1::HomogenNumericTable<>::create(data, 5, mat.rows * mat.cols);
+
+	daal::algorithms::dbscan::Batch<> algorithm(toleranceValue, minCluster);
+
+	algorithm.input.set(daal::algorithms::dbscan::data, dataTable);
+
+
+
+	algorithm.compute();
+
+	int numberClusters = algorithm.getResult()->get(daal::algorithms::dbscan::nClusters);
+
+	auto tend = std::chrono::high_resolution_clock::now();
+	*duration = (int)std::chrono::duration_cast<std::chrono::microseconds>(tend - tstart).count();
+
+	inMatU.release();
+
+	return clusterID;
+}
+
+			cv::UMat tester;
+			cv::compare(neighbourXU, NONE, tester, cv::CMP_EQ);
+			int countNoneX = cv::countNonZero(tester);
+			cv::compare(neighbourYU, NONE, tester, cv::CMP_EQ);
+			int countNoneY = cv::countNonZero(tester);
+
+
+
+			if (noise.at<BYTE>(y, x) != 0) {
+
+				int pixel342offset = ((3 * bounds.width) + 42) + (indexSize * 3);
+				int xval = *(neighbourBuffer + pixel342offset);
+
+
+				int tester = 5;
+			}
+
+				if (noise.at<BYTE>(y, x) != 0) {
+					int tester = 5;
+				}
+
+							cv::Rect boundsRect(0, 0, bounds.width, bounds.height);
+			cv::Rect shiftBounds(-neighbourLoc[i].x, -neighbourLoc[i].y, bounds.width, bounds.height);
+			shiftBounds = shiftBounds & boundsRect;
+			cv::Rect cropBounds(neighbourLoc[i].x, neighbourLoc[i].y, bounds.width, bounds.height);
+			cropBounds = cropBounds & boundsRect;
+
+			cv::Mat testerx = neighbourXU.getMat(cv::ACCESS_READ);
+			cv::Mat testery = neighbourYU.getMat(cv::ACCESS_READ);
+			int babi0x = testerx.at<int>(9 + neighbourLoc[0].x, 50 + neighbourLoc[0].y);
+			int babi0y = testery.at<int>(9 + neighbourLoc[0].x, 50 + neighbourLoc[0].y);
+			int babi1x = testerx.at<int>(9 + neighbourLoc[1].x, 50 + neighbourLoc[1].y);
+			int babi1y = testery.at<int>(9 + neighbourLoc[1].x, 50 + neighbourLoc[1].y);
+			int babi2x = testerx.at<int>(9 + neighbourLoc[2].x, 50 + neighbourLoc[2].y);
+			int babi2y = testery.at<int>(9 + neighbourLoc[2].x, 50 + neighbourLoc[2].y);
+			int babi3x = testerx.at<int>(9 + neighbourLoc[3].x, 50 + neighbourLoc[3].y);
+			int babi3y = testery.at<int>(9 + neighbourLoc[3].x, 50 + neighbourLoc[3].y);
+			int babi4x = testerx.at<int>(9 + neighbourLoc[4].x, 50 + neighbourLoc[4].y);
+			int babi4y = testery.at<int>(9 + neighbourLoc[4].x, 50 + neighbourLoc[4].y);
+			int babi5x = testerx.at<int>(9 + neighbourLoc[5].x, 50 + neighbourLoc[5].y);
+			int babi5y = testery.at<int>(9 + neighbourLoc[5].x, 50 + neighbourLoc[5].y);
+			int babi6x = testerx.at<int>(9 + neighbourLoc[6].x, 50 + neighbourLoc[6].y);
+			int babi6y = testery.at<int>(9 + neighbourLoc[6].x, 50 + neighbourLoc[6].y);
+			int babi7x = testerx.at<int>(9 + neighbourLoc[7].x, 50 + neighbourLoc[7].y);
+			int babi7y = testery.at<int>(9 + neighbourLoc[7].x, 50 + neighbourLoc[7].y);
+			cv::Point point = neighbourLoc[i];
+			// 9. 50
+
+
+			
+	cv::Mat pixels = pixelsU.getMat(cv::ACCESS_READ);
+	cv::Mat multiplier = multiplierU.getMat(cv::ACCESS_READ);
+
+	cv::Vec3b point1 = pixels.at<cv::Vec3b>(0, 45);
+	cv::Vec3b point2 = pixels.at<cv::Vec3b>(0, 46);
+
+	float tolerance1 = CIEDE::getE76Byte(point1, point2) * multiplier.at<float>(0, 46);
+	float tolerance2 = CIEDE::getE76Byte(point2, point1) * multiplier.at<float>(0, 45);
+	float tol = toleranceValue;
+
+	//if (tolerance <= toleranceValue) {
+	//}
+
+
+	pixels.release();
+	multiplier.release();
+
+
+// actual dbScanGPU algorithm
+void dbScanCPUInit::scan2(cv::Mat* labels, const cv::Mat& labMat, const cv::Size& imageSize, cv::Point point, const cv::Rect& bounds, int* clusterID, float toleranceValue, int minCluster)
+{
+	cv::Rect expandedBounds(bounds.x - 1, bounds.y - 1, bounds.width + 2, bounds.height + 2);
+	expandedBounds = expandedBounds & cv::Rect(0, 0, imageSize.width, imageSize.height);
+
+	cv::Mat pixels;
+
+	// add smoothing
+	cv::medianBlur(labMat, pixels, 3);
+
+	// get initial rect and umat
+	cv::Rect windowB(1, 1, bounds.width, bounds.height);
+	cv::Rect window(0, 0, bounds.width, bounds.height);
+
+	// normalise to lab vec
+	std::vector<cv::Mat> diffFloatVecB(labChannels);
+	CIEDE::normaliseLab(pixels, &diffFloatVecB, (float)USHRT_MAX);
+	cv::Mat multiplier = CIEDE::getMultiplier(diffFloatVecB[0], windowB);
+
+	// create vector of neighbour points and locations
+	int vecSize = imageSize.width * imageSize.height;
+	std::vector<cv::Mat> neighbourVecXS = std::vector<cv::Mat>(neighbourCount);
+	std::vector<cv::Mat> neighbourVecYS = std::vector<cv::Mat>(neighbourCount);
+
+	// initialise neighbourVecXU/Y with empty UMats
+	for (int i = 0; i < neighbourCount; i++) {
+		neighbourVecXS[i] = cv::Mat(imageSize.height, imageSize.width, CV_32SC1);
+		neighbourVecYS[i] = cv::Mat(imageSize.height, imageSize.width, CV_32SC1);
+	}
+
+	// iterate through each neighbour displacement
+	cv::Mat compare(bounds.height, bounds.width, CV_32FC1);
+	compare.setTo(toleranceValue);
+	cv::Mat result(bounds.height, bounds.width, CV_8UC1);
+
+	std::vector<cv::Mat> neighbourVecPointSB(2);
+	neighbourVecPointSB[0] = cv::Mat(imageSize.height + 2, imageSize.width + 2, CV_32SC1);
+	neighbourVecPointSB[1] = cv::Mat(imageSize.height + 2, imageSize.width + 2, CV_32SC1);
+	neighbourVecPointSB[0].row(0).setTo(NONE);
+	neighbourVecPointSB[0].row(neighbourVecPointSB[0].rows - 1).setTo(NONE);
+	neighbourVecPointSB[0].col(0).setTo(NONE);
+	neighbourVecPointSB[0].col(neighbourVecPointSB[0].cols - 1).setTo(NONE);
+	neighbourVecPointSBPreset[0](window).copyTo(neighbourVecPointSB[0](windowB));
+	neighbourVecPointSBPreset[1](window).copyTo(neighbourVecPointSB[1](windowB));
+
+	for (int i = 0; i < neighbourCount; i++) {
+		cv::Mat neighbourDiffFloat;
+		cv::Rect ROI2(1 + neighbourLoc[i].x, 1 + neighbourLoc[i].y, bounds.width, bounds.height);
+		CIEDE::compareNormalisedE76UMat(diffFloatVecB, multiplier, windowB, ROI2, &neighbourDiffFloat);
+
+		// compare difference with the tolerance threshold and copy the point location to neighbourVecXU/Y if included
+		// if point not included, then both X & Y values are set to NONE
+		cv::compare(neighbourDiffFloat, compare, result, cv::CMP_LE);
+		neighbourVecXS[i](expandedBounds).setTo(NONE);
+		neighbourVecYS[i](expandedBounds).setTo(NONE);
+
+		int dispX = neighbourLoc[i].x;
+		int dispY = neighbourLoc[i].y;
+		cv::Rect dispBounds(bounds.x + dispX + 1, bounds.y + dispY + 1, bounds.width, bounds.height);
+		neighbourVecPointSB[0](dispBounds).copyTo(neighbourVecXS[i](bounds), result);
+		neighbourVecPointSB[1](dispBounds).copyTo(neighbourVecYS[i](bounds), result);
+
+		// set the first/last row/column for neighbourVecXU to NONE depending on dispX/Y
+		// neighbourVecYU no need to change as the cluster filtering depends only on X
+		if (dispX == -1) {
+			// set first column to NONE
+			neighbourVecXS[i](bounds).col(0).setTo(NONE);
+		}
+		else if (dispX == 1) {
+			// set last column to NONE
+			neighbourVecXS[i](bounds).col(bounds.width - 1).setTo(NONE);
+		}
+		if (dispY == -1) {
+			// set first row to NONE
+			neighbourVecXS[i](bounds).row(0).setTo(NONE);
+		}
+		else if (dispY == 1) {
+			// set last row to NONE
+			neighbourVecXS[i](bounds).row(bounds.height - 1).setTo(NONE);
+		}
+
+		neighbourDiffFloat.release();
+	}
+
+	// clean up
+	for (int i = 0; i < labChannels; i++) {
+		diffFloatVecB[i].release();
+	}
+	pixels.release();
+	compare.release();
+	result.release();
+	neighbourVecPointSB[0].release();
+	neighbourVecPointSB[1].release();
+
+	// create neighbour buffer and initialise
+	indexSize = bounds.height * bounds.width;
+	int neighbourVecSize = indexSize * sizeof(int);
+	int* neighbourBuffer = (int*)malloc(neighbourCount * 2 * neighbourVecSize);
+	int* labelsBuffer = (int*)malloc(neighbourVecSize);
+	int* offsetBuffer = (int*)malloc(neighbourVecSize);
+
+	if (neighbourBuffer != NULL && labelsBuffer != NULL && offsetBuffer != NULL) {
+		for (int i = 0; i < neighbourCount; i++) {
+			int indexX = i * indexSize;
+			int indexY = indexX + (neighbourCount * indexSize);
+
+			// offset by bounds
+			cv::Mat neighbourX = neighbourVecXS[i](bounds).clone();
+			cv::Mat neighbourY = neighbourVecYS[i](bounds).clone();
+			cv::subtract(neighbourX, bounds.x, neighbourX);
+			cv::subtract(neighbourY, bounds.y, neighbourY);
+			memcpy(neighbourBuffer + indexX, (int*)neighbourX.data, neighbourVecSize);
+			memcpy(neighbourBuffer + indexY, (int*)neighbourY.data, neighbourVecSize);
+			neighbourX.release();
+			neighbourY.release();
+		}
+
+		// create atomic vector for labels
+		std::vector<int> labelsVec = utility::matToVec<int>(*labels);
+		memcpy(labelsBuffer, labelsVec.data(), neighbourVecSize);
+
+		// start at the center of the rect, then run through the remainder
+		*clusterID = 1;
+		robin_hood::unordered_flat_map<int, int> clusterDict;
+		int clusterCapacity = 0;
+
+		expandCluster(neighbourBuffer, labelsBuffer, offsetBuffer, bounds, cv::Point(point.x - bounds.x, point.y - bounds.y), &clusterDict, &clusterCapacity, clusterID);
+		for (int y = 0; y < bounds.height; y++) {
+			for (int x = 0; x < bounds.width; x++) {
+				expandCluster(neighbourBuffer, labelsBuffer, offsetBuffer, bounds, cv::Point(x, y), &clusterDict, &clusterCapacity, clusterID);
+			}
+		}
+
+		if (minCluster > 1) {
+			// set small clusters to NOISE
+			robin_hood::unordered_flat_set<int> includedClusters, excludedClusters;
+			includedClusters.reserve(clusterDict.size());
+			excludedClusters.reserve(clusterDict.size());
+			for (int i = 1; i <= clusterDict.size(); i++) {
+				if (clusterDict[i] >= minCluster) {
+					includedClusters.emplace(i);
+				}
+				else {
+					excludedClusters.emplace(i);
+				}
+			}
+
+			std::vector<int> indexSizeVec(indexSize);
+			std::iota(indexSizeVec.begin(), indexSizeVec.end(), 0);
+
+			if (includedClusters.size() > excludedClusters.size()) {
+				// use excluded clusters
+				std::for_each(std::execution::seq, indexSizeVec.begin(), indexSizeVec.end(), [&labelsBuffer, &excludedClusters](int& v) {
+					int label = *(labelsBuffer + v);
+					if (label >= 1 && excludedClusters.contains(label)) {
+						*(labelsBuffer + v) = NOISE;
+					}
+					});
+			}
+			else {
+				// use included clusters
+				std::for_each(std::execution::seq, indexSizeVec.begin(), indexSizeVec.end(), [&labelsBuffer, &includedClusters](int& v) {
+					int label = *(labelsBuffer + v);
+					if (label >= 1 && !includedClusters.contains(label)) {
+						*(labelsBuffer + v) = NOISE;
+					}
+					});
+			}
+
+			// reduce the cluster size accordingly
+			*clusterID -= (int)excludedClusters.size();
+		}
+
+		memcpy(labels->data, labelsBuffer, neighbourVecSize);
+	}
+
+	// clean up
+	free(neighbourBuffer);
+	free(labelsBuffer);
+	free(offsetBuffer);
+	multiplier.release();
+
+	std::vector<cv::Mat>::iterator itMat;
+	for (itMat = neighbourVecXS.begin(); itMat != neighbourVecXS.end(); ++itMat) {
+		itMat->release();
+	}
+	for (itMat = neighbourVecYS.begin(); itMat != neighbourVecYS.end(); ++itMat) {
+		itMat->release();
+	}
+	neighbourVecXS.clear();
+	neighbourVecYS.clear();
+}
+
+
+
+		// set the first/last row/column for neighbourVecXU to NONE depending on dispX/Y
+		// neighbourVecYU no need to change as the cluster filtering depends only on X
+		if (dispX == -1 && bounds.x == 0) {
+			// set first column to NONE
+			neighbourVecXSU[i](bounds).col(0).setTo(NONE);
+		}
+		else if (dispX == 1 && bounds.x + bounds.width == imageSize.width) {
+			// set last column to NONE
+			neighbourVecXSU[i](bounds).col(bounds.width - 1).setTo(NONE);
+		}
+		if (dispY == -1 && bounds.y == 0) {
+			// set first row to NONE
+			neighbourVecXSU[i](bounds).row(0).setTo(NONE);
+		}
+		else if (dispY == 1 && bounds.y + bounds.height == imageSize.height) {
+			// set last row to NONE
+			neighbourVecXSU[i](bounds).row(bounds.height - 1).setTo(NONE);
+		}
+
+
+
+int ScanSegment::segment(const cv::Mat& mat, const cv::Rect& bounds, cv::Mat* labelsMat, int superpixels)
+{
+	// steps:
+	// 1) divide bounds area into uniformly distributed rectangular segments
+	// 2) get array of seed points
+	// 3) initialise normalised lab values and multiplier
+	// 4) get adjusted tolerance = (100 / average length (horz/vert)) x sqrt(3) [ie. euclidean lab colour distance sqrt(l2 + a2 + b2)] x tolerance100
+	// 5) set distance multiplier square to horz/vert length (ie. 1.0f max distance multiplier)
+	// 6) create vector of neighbour points and locations
+	// 7) calculate colour distances
+	// 8) multiply colour distance by distance multiplier to get the adjusted distance
+	// 9) run dbScan in parallel for all seeds using this adjusted distance
+	if (bounds.width <= maxwidth && bounds.height <= maxheight) {
+		int imageWidth = mat.cols;
+		int imageHeight = mat.rows;
+
+		// set labels to unclassified
+		if (labelsMat->empty()) {
+			*labelsMat = cv::Mat(mat.rows, mat.cols, CV_32SC1, cv::Scalar(NONE));
+		}
+		else if (labelsMat->rows != mat.rows || labelsMat->cols != mat.cols || labelsMat->type() != CV_32SC1) {
+			labelsMat->release();
+			*labelsMat = cv::Mat(mat.rows, mat.cols, CV_32SC1, cv::Scalar(NONE));
+		}
+		else {
+			labelsMat->setTo(NONE);
+		}
+		(*labelsMat)(bounds).setTo(UNCLASSIFIED);
+
+		// 1) divide bounds area into uniformly distributed rectangular segments
+		int divLength = (int)floorf((float)(bounds.width + bounds.height) / (2.0f * sqrtf((float)superpixels)));
+		int horzDiv = (int)floorf((float)bounds.width / (float)divLength);
+		int vertDiv = (int)floorf((float)bounds.height / (float)divLength);
+
+		// 2) get array of seed points
+		std::vector<cv::Point> seedPoints(horzDiv * vertDiv);
+		float horzLength = (float)bounds.width / (float)horzDiv;
+		float vertLength = (float)bounds.height / (float)horzDiv;
+		for (int y = 0; y < vertDiv; y++) {
+			for (int x = 0; x < horzDiv; x++) {
+				seedPoints[(y * horzDiv) + x] = cv::Point((int)(bounds.x + (horzLength * ((float)x + 0.5f))), (int)(bounds.y + (vertLength * ((float)y + 0.5f))));
+			}
+		}
+
+		// get initial rect and umat
+		cv::Rect windowB(1, 1, bounds.width, bounds.height);
+		cv::Rect window(bounds.x, bounds.y, bounds.width, bounds.height);
+
+		// 3) initialise normalised lab values and multiplier
+		cv::Mat labMat;
+		cv::cvtColor(mat(bounds), labMat, cv::COLOR_BGR2Lab);
+		std::vector<cv::Mat> diffFloatVecB(labChannels);
+		CIEDE::normaliseLab(labMat, &diffFloatVecB, (float)USHRT_MAX);
+		cv::Mat multiplier = CIEDE::getMultiplier(diffFloatVecB[0], windowB);
+
+		// 4) get adjusted tolerance = (100 / average length (horz/vert)) x sqrt(3) [ie. euclidean lab colour distance sqrt(l2 + a2 + b2)] x tolerance100
+		float adjTolerance = (200.0f / (mat.cols + mat.rows)) * sqrtf(3) * tolerance100;
+
+		// 5) set distance multiplier square to horz/vert length (ie. 1.0f max distance multiplier)
+		cv::Mat distMul((int)vertLength, (int)horzLength, CV_32FC1);
+		cv::resize(distanceMat, distMul, distMul.size(), 0.0, 0.0, cv::INTER_LINEAR);
+
+		// 6) create vector of neighbour points and locations
+		std::vector<cv::Mat> neighbourVecPointSB(2);
+		neighbourVecPointSB[0] = cv::Mat(bounds.height + 2, bounds.width + 2, CV_32SC1);
+		neighbourVecPointSB[1] = cv::Mat(bounds.height + 2, bounds.width + 2, CV_32SC1);
+		if (bounds.x == 0) {
+			neighbourVecPointSB[0].row(0).setTo(NONE);
+		}
+		if (bounds.x + bounds.width == imageWidth) {
+			neighbourVecPointSB[0].row(neighbourVecPointSB[0].rows - 1).setTo(NONE);
+		}
+		if (bounds.y == 0) {
+			neighbourVecPointSB[0].col(0).setTo(NONE);
+		}
+		if (bounds.y + bounds.height == imageHeight) {
+			neighbourVecPointSB[0].col(neighbourVecPointSB[0].cols - 1).setTo(NONE);
+		}
+		neighbourVecPointSBPreset[0](window).copyTo(neighbourVecPointSB[0](windowB));
+		neighbourVecPointSBPreset[1](window).copyTo(neighbourVecPointSB[1](windowB));
+
+		std::vector<cv::Rect> seedExpandedBounds(horzDiv * vertDiv);
+		std::vector<cv::Rect> seedBounds(horzDiv * vertDiv);
+		std::vector<cv::Rect> seedDisp(horzDiv * vertDiv);
+		std::vector<std::vector<cv::Mat>> seedNeighbourXS(horzDiv * vertDiv);
+		std::vector<std::vector<cv::Mat>> seedNeighbourYS(horzDiv * vertDiv);
+
+		int expandedHorzLength = (int)(horzLength * (1.0f + seedExpansion));
+		int expandedVertLength = (int)(vertLength * (1.0f + seedExpansion));
+		for (int y = 0; y < vertDiv; y++) {
+			for (int x = 0; x < horzDiv; x++) {
+				int seedIndex = (y * horzDiv) + x;
+
+				seedBounds[seedIndex] = cv::Rect(seedPoints[seedIndex].x - (int)(horzLength / 2.0f), seedPoints[seedIndex].y - (int)(vertLength / 2.0f), (int)horzLength, (int)vertLength);
+				seedExpandedBounds[seedIndex] = cv::Rect(seedPoints[seedIndex].x - (int)((float)expandedHorzLength / 2.0f), seedPoints[seedIndex].y - (int)((float)expandedVertLength / 2.0f), expandedHorzLength, expandedVertLength);
+				seedExpandedBounds[seedIndex] = seedExpandedBounds[seedIndex] & cv::Rect(0, 0, imageWidth, imageHeight);
+				seedDisp[seedIndex] = cv::Rect(seedExpandedBounds[seedIndex].x - seedPoints[seedIndex].x + (int)((float)expandedHorzLength / 2.0f), seedExpandedBounds[seedIndex].y - seedPoints[seedIndex].y + (int)((float)expandedVertLength / 2.0f), seedExpandedBounds[seedIndex].width, seedExpandedBounds[seedIndex].height);
+
+				seedNeighbourXS[seedIndex] = std::vector<cv::Mat>(neighbourCount);
+				seedNeighbourYS[seedIndex] = std::vector<cv::Mat>(neighbourCount);
+			}
+		}
+
+		cv::Mat neighbourDiffFloat;
+		cv::Mat compare(expandedVertLength, expandedHorzLength, CV_32FC1);
+		compare.setTo(adjTolerance);
+		cv::Mat result(expandedVertLength, expandedHorzLength, CV_8UC1);
+		for (int neighbourIndex = 0; neighbourIndex < neighbourCount; neighbourIndex++) {
+			// 7) calculate colour distances
+			cv::Rect ROI2(1 + neighbourLoc[neighbourIndex].x, 1 + neighbourLoc[neighbourIndex].y, bounds.width, bounds.height);
+			CIEDE::compareNormalisedE76UMat(diffFloatVecB, multiplier, windowB, ROI2, &neighbourDiffFloat);
+
+			for (int seedIndex = 0; seedIndex < horzDiv * vertDiv; seedIndex++) {
+				// 8) multiply colour distance by distance multiplier to get the adjusted distance
+				cv::Mat neighbourSeedFloat = neighbourDiffFloat(seedExpandedBounds[seedIndex]).clone();
+				cv::Rect distanceRect(seedBounds[seedIndex].x - seedExpandedBounds[seedIndex].x, seedBounds[seedIndex].y - seedExpandedBounds[seedIndex].y, (int)horzLength, (int)vertLength);
+				cv::multiply(neighbourSeedFloat(distanceRect), distMul, neighbourSeedFloat(distanceRect));
+
+				// initialise neighbourVecXU/Y with empty UMats
+				seedNeighbourXS[seedIndex][neighbourIndex] = cv::Mat(seedExpandedBounds[seedIndex].height, seedExpandedBounds[seedIndex].width, CV_32SC1);
+				seedNeighbourYS[seedIndex][neighbourIndex] = cv::Mat(seedExpandedBounds[seedIndex].height, seedExpandedBounds[seedIndex].width, CV_32SC1);
+				seedNeighbourXS[seedIndex][neighbourIndex].setTo(NONE);
+				seedNeighbourYS[seedIndex][neighbourIndex].setTo(NONE);
+
+				// compare difference with the tolerance threshold and copy the point location to neighbourVecXU/Y if included
+				// if point not included, then both X & Y values are set to NONE
+				cv::compare(neighbourSeedFloat, compare(seedDisp[seedIndex]), result(seedDisp[seedIndex]), cv::CMP_LE);
+				int dispX = neighbourLoc[neighbourIndex].x;
+				int dispY = neighbourLoc[neighbourIndex].y;
+				cv::Rect dispBounds(dispX + 1 + seedExpandedBounds[seedIndex].x, dispY + 1 + seedExpandedBounds[seedIndex].y, seedExpandedBounds[seedIndex].width, seedExpandedBounds[seedIndex].height);
+				neighbourVecPointSB[0](dispBounds).copyTo(seedNeighbourXS[seedIndex][neighbourIndex], result(seedDisp[seedIndex]));
+				neighbourVecPointSB[1](dispBounds).copyTo(seedNeighbourYS[seedIndex][neighbourIndex], result(seedDisp[seedIndex]));
+
+				// set boundaries only for seedNeighbourXS (if NONE, then not selected)
+				if (dispX == -1) {
+					seedNeighbourXS[seedIndex][neighbourIndex].col(0).setTo(NONE);
+				}
+				if (dispY == -1) {
+					seedNeighbourXS[seedIndex][neighbourIndex].row(0).setTo(NONE);
+				}
+				if (dispX == 1) {
+					seedNeighbourXS[seedIndex][neighbourIndex].col(seedNeighbourXS[seedIndex][neighbourIndex].cols - 1).setTo(NONE);
+				}
+				if (dispY == 1) {
+					seedNeighbourXS[seedIndex][neighbourIndex].row(seedNeighbourXS[seedIndex][neighbourIndex].rows - 1).setTo(NONE);
+				}
+
+				neighbourSeedFloat.release();
+			}
+		}
+
+		// create neighbour buffer and initialise
+		indexSize = bounds.height * bounds.width;
+		seedSize = expandedVertLength * expandedHorzLength;
+		int indexVecSize = indexSize * sizeof(int);
+		int seedVecSize = seedSize * sizeof(int);
+		int* neighbourBuffer = (int*)malloc(neighbourCount * 2 * seedVecSize);
+		int* labelsBuffer = (int*)malloc(indexVecSize);
+		int* offsetBuffer = (int*)malloc(seedVecSize);
+
+		if (labelsBuffer != NULL) {
+			// create atomic vector for labels
+			std::vector<int> labelsVec = utility::matToVec<int>(*labelsMat);
+			memcpy(labelsBuffer, labelsVec.data(), indexVecSize);
+		}
+
+		// clean up
+		labMat.release();
+		neighbourDiffFloat.release();
+		compare.release();
+		result.release();
+		neighbourVecPointSB[0].release();
+		neighbourVecPointSB[1].release();
+		distMul.release();
+		multiplier.release();
+		for (int i = 0; i < labChannels; i++) {
+			diffFloatVecB[i].release();
+		}
+
+		if (neighbourBuffer != NULL && labelsBuffer != NULL && offsetBuffer != NULL) {
+			int clusterID = 1;
+			robin_hood::unordered_flat_map<int, int> clusterDict;
+			int clusterCapacity = 0;
+
+			for (int seedIndex = 0; seedIndex < horzDiv * vertDiv; seedIndex++) {
+				for (int neighbourIndex = 0; neighbourIndex < neighbourCount; neighbourIndex++) {
+					int indexX = neighbourIndex * seedVecSize;
+					int indexY = indexX + (neighbourCount * seedVecSize);
+					int dataSize = seedExpandedBounds[seedIndex].width * seedExpandedBounds[seedIndex].height * sizeof(int);
+					memcpy((BYTE*)neighbourBuffer + indexX, (BYTE*)(seedNeighbourXS[seedIndex][neighbourIndex].data), dataSize);
+					memcpy((BYTE*)neighbourBuffer + indexY, (BYTE*)(seedNeighbourYS[seedIndex][neighbourIndex].data), dataSize);
+				}
+
+				expandCluster(neighbourBuffer, labelsBuffer, offsetBuffer, bounds.size(), seedExpandedBounds[seedIndex], seedPoints[seedIndex], &clusterDict, &clusterCapacity, &clusterID);
+			}
+
+
+			memcpy(labelsMat->data, labelsBuffer, indexVecSize);
+
+
+			for (int seedIndex = 0; seedIndex < horzDiv * vertDiv; seedIndex++) {
+				cv::rectangle(*labelsMat, seedBounds[seedIndex], cv::Scalar(65535));
+			}
+
+		}
+
+
+
+
+
+
+
+
+		// clean up
+		free(neighbourBuffer);
+		free(labelsBuffer);
+		free(offsetBuffer);
+		for (int seedIndex = 0; seedIndex < horzDiv * vertDiv; seedIndex++) {
+			for (int neighbourIndex = 0; neighbourIndex < neighbourCount; neighbourIndex++) {
+				seedNeighbourXS[seedIndex][neighbourIndex].release();
+				seedNeighbourYS[seedIndex][neighbourIndex].release();
+			}
+		}
+
+		return 0;
+	}
+	else {
+		return 0;
+	}
+}
+
+// expand clusters from a point
+void ScanSegment::expandCluster(int* neighbourBuffer, int* labelsBuffer, int* offsetBuffer, const cv::Size& imageSize, const cv::Rect& seedBoundsRect, const cv::Point& point, robin_hood::unordered_flat_map<int, int>* clusterDict, int* clusterCapacity, int* clusterID)
+{
+	if (*(labelsBuffer + (point.y * imageSize.width) + point.x) == UNCLASSIFIED) {
+		int count = 0;
+		if (expandCluster2(neighbourBuffer, labelsBuffer, offsetBuffer, imageSize, seedBoundsRect, point, &count, *clusterID) == FAILURE) {
+			*(labelsBuffer + (point.y * imageSize.width) + point.x) = NOISE;
+		}
+		else {
+			if (clusterDict->size() == *clusterCapacity) {
+				*clusterCapacity += clusterIncrements;
+				clusterDict->reserve(*clusterCapacity);
+			}
+			clusterDict->emplace(*clusterID, count);
+			(*clusterID)++;
+		}
+	}
+}
+
+int ScanSegment::expandCluster2(int* neighbourBuffer, int* labelsBuffer, int* offsetBuffer, const cv::Size& imageSize, const cv::Rect& seedBoundsRect, const cv::Point& point, int* count, int clusterID)
+{
+	int offsetStart = 0;
+	int offsetEnd = 0;
+	calculateCluster(neighbourBuffer, labelsBuffer, offsetBuffer, &offsetEnd, imageSize, seedBoundsRect, point, clusterID);
+
+	if (offsetStart == offsetEnd) {
+		*count = 0;
+		return FAILURE;
+	}
+	else {
+		// set cluster id and get core point index
+		*(labelsBuffer + ((point.y * imageSize.width) + point.x)) = clusterID;
+
+		while (offsetStart < offsetEnd) {
+			int intoffset2 = *(offsetBuffer + offsetStart);
+			offsetStart++;
+			calculateCluster(neighbourBuffer, labelsBuffer, offsetBuffer, &offsetEnd, imageSize, seedBoundsRect, intoffset2, clusterID);
+		}
+
+		*count = offsetEnd;
+		return SUCCESS;
+	}
+}
+
+void ScanSegment::calculateCluster(int* neighbourBuffer, int* labelsBuffer, int* offsetBuffer, int* offsetEnd, const cv::Size& imageSize, const cv::Rect& seedBoundsRect, const cv::Point& point, int clusterID)
+{
+	int intoffset = ((point.y - seedBoundsRect.y) * seedBoundsRect.width) + (point.x - seedBoundsRect.x);
+	calculateCluster(neighbourBuffer, labelsBuffer, offsetBuffer, offsetEnd, imageSize, seedBoundsRect, intoffset, clusterID);
+}
+
+
+void ScanSegment::calculateCluster(int* neighbourBuffer, int* labelsBuffer, int* offsetBuffer, int* offsetEnd, const cv::Size& imageSize, const cv::Rect& seedBoundsRect, int intoffset, int clusterID)
+{
+	for (int i = 0; i < neighbourCount; i++) {
+		int offset = (i * seedSize) + intoffset;
+		int x = *(neighbourBuffer + offset);
+		if (x != NONE) {
+			int y = *(neighbourBuffer + offset + (neighbourCount * seedSize));
+			int intoffset2 = (y * imageSize.width) + x;
+			int labelNeighbour = *(labelsBuffer + intoffset2);
+			if (labelNeighbour == UNCLASSIFIED) {
+				*(labelsBuffer + intoffset2) = clusterID;
+				*(offsetBuffer + *offsetEnd) = ((y - seedBoundsRect.y) * seedBoundsRect.width) + (x - seedBoundsRect.x);
+				(*offsetEnd)++;
+			}
+		}
+	}
+}
+
+
+		auto tstart1 = std::chrono::high_resolution_clock::now();
+
+		int featureCount = 0;
+		for (int i = 0; i < neighbourCount; i++) {
+			featureCount += (int)clusterDictVec[i].size();
+		}
+
+		robin_hood::unordered_flat_map<int, std::pair<int, std::vector<float>>>::iterator itCluster;
+		robin_hood::unordered_flat_map<int, std::pair<int, int>> featureMap;
+		featureMap.reserve(featureCount);
+		float* featureBuffer = new float[featureCount * 5];
+		int currentFeature = 0;
+		for (int i = 0; i < neighbourCount; i++) {
+			for (itCluster = clusterDictVec[i].begin(); itCluster != clusterDictVec[i].end(); ++itCluster) {
+				featureMap.emplace(currentFeature, std::make_pair(itCluster->first, itCluster->second.first));
+
+				int featureIndex = currentFeature * 5;
+				featureBuffer[featureIndex] = itCluster->second.second[0];
+				featureBuffer[featureIndex + 1] = itCluster->second.second[1];
+				featureBuffer[featureIndex + 2] = itCluster->second.second[2];
+				featureBuffer[featureIndex + 3] = itCluster->second.second[3];
+				featureBuffer[featureIndex + 4] = itCluster->second.second[4];
+
+				currentFeature++;
+			}
+		}
+
+		cv::Mat featureMat(featureCount, 5, CV_32FC1);
+		memcpy(featureMat.data, featureBuffer, featureCount * 5 * sizeof(float));
+
+		delete[] featureBuffer;
+
+		cv::Mat bestlabels(featureCount, 1, CV_32SC1);
+
+
+		auto tend1 = std::chrono::high_resolution_clock::now();
+		int time1 = (int)std::chrono::duration_cast<std::chrono::microseconds>(tend1 - tstart1).count();
+
+
+
+		auto tstart2 = std::chrono::high_resolution_clock::now();
+
+		cv::kmeans(featureMat, superpixels, bestlabels, cv::TermCriteria(cv::TermCriteria::EPS | cv::TermCriteria::MAX_ITER, 10, 1.0), 1, cv::KMEANS_PP_CENTERS);
+
+		auto tend2 = std::chrono::high_resolution_clock::now();
+		int time2 = (int)std::chrono::duration_cast<std::chrono::microseconds>(tend2 - tstart2).count();
+
+
+
+	std::vector<std::vector<cv::Rect>> seedQuads(horzDiv * vertDiv);
+	for (int y = 0; y < vertDiv; y++) {
+		for (int x = 0; x < horzDiv; x++) {
+			int seedIndex = (y * horzDiv) + x;
+			seedQuads[seedIndex] = std::vector<cv::Rect>(4);
+			int halfWidth = (int)((float)seedRects[seedIndex].width / 2.0f);
+			int halfHeight = (int)((float)seedRects[seedIndex].height / 2.0f);
+			int remainderWidth = seedRects[seedIndex].width - halfWidth;
+			int remainderHeight = seedRects[seedIndex].height - halfHeight;
+
+			seedQuads[seedIndex][0] = cv::Rect(seedRects[seedIndex].x, seedRects[seedIndex].y, halfWidth, halfHeight);
+			seedQuads[seedIndex][1] = cv::Rect(seedRects[seedIndex].x + halfWidth, seedRects[seedIndex].y, remainderWidth, halfHeight);
+			seedQuads[seedIndex][2] = cv::Rect(seedRects[seedIndex].x, seedRects[seedIndex].y + halfHeight, halfWidth, remainderHeight);
+			seedQuads[seedIndex][3] = cv::Rect(seedRects[seedIndex].x + halfWidth, seedRects[seedIndex].y + remainderWidth, halfWidth, remainderHeight);
+		}
+	}
+
+			// remove small clusters
+		std::for_each(std::execution::seq, indexVec.begin(), indexVec.end(), [&](int& v) {
+			cv::Rect seedRect = seedRects[v];
+			cv::Mat countMask;
+
+			int mergeDist = 1;
+			int mergeCount = ((mergeDist * 2) + 1) * ((mergeDist * 2) + 1);
+			int mergeRadius = mergeDist * mergeMul;
+
+			cv::inRange(countMat(seedRect), 1, mergeCount, countMask);
+			int count = cv::countNonZero(countMask);
+			if (count > 0) {
+				std::vector<cv::Point> countLocations;
+				cv::findNonZero(countMask, countLocations);
+
+				std::vector<cv::Point>::iterator itPoint;
+				for (itPoint = countLocations.begin(); itPoint != countLocations.end(); ++itPoint) {
+					cv::Point centerPoint(itPoint->x + seedRect.x, itPoint->y + seedRect.y);
+					int count1 = countMat.at<int>(centerPoint.y, centerPoint.x);
+					if (count1 > 0) {
+						cv::Rect searchQuad;
+						std::vector<cv::Point> searchLocations;
+						int searchLocationsSize;
+						int searchMul = 1;
+
+						// expand search until sufficient neighbours found
+						do {
+							int mergeMulRadius = mergeRadius * searchMul;
+							searchQuad = cv::Rect(centerPoint.x - mergeMulRadius, centerPoint.y - mergeMulRadius, (mergeMulRadius * 2) + 1, (mergeMulRadius * 2) + 1) & bounds;
+							cv::findNonZero(countMat(searchQuad), searchLocations);
+							searchLocations.erase(std::remove(searchLocations.begin(), searchLocations.end(), cv::Point(mergeMulRadius, mergeMulRadius)), searchLocations.end());
+							searchLocationsSize = (int)searchLocations.size();
+							searchMul++;
+						} while (searchLocationsSize < minSearchNeighbours);
+
+						std::vector<std::pair<int, float>> matchVec(searchLocationsSize);
+						cv::Vec3b pixel1 = labMat.at<cv::Vec3b>(centerPoint.y, centerPoint.x);
+						for (int j = 0; j < searchLocationsSize; j++) {
+							cv::Point point2(searchLocations[j].x + searchQuad.x, searchLocations[j].y + searchQuad.y);
+							cv::Vec3b pixel2 = labMat.at<cv::Vec3b>(point2.y, point2.x);
+							float v1 = (float)(centerPoint.x - point2.x) / (float)bounds.width;
+							float v2 = (float)(centerPoint.y - point2.y) / (float)bounds.height;
+							float v3 = (float)(pixel1[0] - pixel2[0]) / 255.0f;
+							float v4 = (float)(pixel1[1] - pixel2[1]) / 255.0f;
+							float v5 = (float)(pixel1[2] - pixel2[2]) / 255.0f;
+							matchVec[j] = std::make_pair(j, v1 * v1 + v2 * v2 + v3 * v3 + v4 * v4 + v5 * v5);
+						}
+
+						// sort ascending according to distance
+						std::sort(std::execution::seq, matchVec.begin(), matchVec.end(), [](auto& left, auto& right) {
+							return left.second < right.second;
+							});
+
+						cv::Point topMatch = searchLocations[matchVec[0].first];
+						topMatch = cv::Point(topMatch.x + searchQuad.x, topMatch.y + searchQuad.y);
+
+						int count2 = countMat.at<int>(topMatch.y, topMatch.x);
+						int label1 = labelsMat->at<int>(centerPoint.y, centerPoint.x);
+						int label2 = labelsMat->at<int>(topMatch.y, topMatch.x);
+						if (count1 > count2) {
+							countMat.at<int>(centerPoint.y, centerPoint.x) = count1 + count2;
+							countMat.at<int>(topMatch.y, topMatch.x) = 0;
+							substitutionVec[v][substitutionIndexVec[v]] = label2;
+							substitutionVec[v][substitutionIndexVec[v] + 1] = label1;
+						}
+						else {
+							countMat.at<int>(centerPoint.y, centerPoint.x) = 0;
+							countMat.at<int>(topMatch.y, topMatch.x) = count1 + count2;
+							substitutionVec[v][substitutionIndexVec[v]] = label1;
+							substitutionVec[v][substitutionIndexVec[v] + 1] = label2;
+						}
+						substitutionIndexVec[v] += 2;
+
+
+
+
+
+
+
+						///////////////////////AFTER MERGING, STILL BELOW THRESHOLD
+						///////////////////////REPEAT MERGE UNTIL ABOVE THRESHOLD
+						///////////////////////PROPORTIONATELY ADJUST PIXEL COLOUR
+
+
+
+
+
+					}
+				}
+			}
+
+			countMask.release();
+			});
+
+
+					std::for_each(std::execution::par_unseq, indexVec.begin(), indexVec.end(), [&seedRects, &smallFullMask, &largeFullMask, &pixelBuffer, &countBuffer, &labelsBuffer, &bounds, &substitutionVec, &substitutionIndexVec](int& v) {
+			cv::Rect seedRect = seedRects[v];
+			cv::Mat smallMask = smallFullMask(seedRect);
+			int count = cv::countNonZero(smallMask);
+			if (count > 0) {
+				float adjBoundsWidth = 255.0f / (float)bounds.width;
+				float adjBoundsHeight = 255.0f / (float)bounds.height;
+
+				std::vector<cv::Point> smallLocations;
+				cv::findNonZero(smallMask, smallLocations);
+
+				std::vector<cv::Point>::iterator itPoint;
+				for (itPoint = smallLocations.begin(); itPoint != smallLocations.end(); ++itPoint) {
+					cv::Point centerPoint(itPoint->x + seedRect.x, itPoint->y + seedRect.y);
+					int centerIndex = (centerPoint.y * bounds.width) + centerPoint.x;
+					cv::Rect searchRect;
+					std::vector<cv::Point> searchLocations;
+					int searchLocationsSize;
+					int searchMul = 1;
+
+					// expand search until sufficient neighbours found
+					do {
+						int mergeRadius = mergeMul * searchMul;
+						searchRect = cv::Rect(centerPoint.x - mergeRadius, centerPoint.y - mergeRadius, (mergeRadius * 2) + 1, (mergeRadius * 2) + 1) & bounds;
+						cv::findNonZero(largeFullMask(searchRect), searchLocations);
+						searchLocationsSize = (int)searchLocations.size();
+						searchMul++;
+					} while (searchLocationsSize < minSearchNeighbours);
+
+					std::vector<std::pair<int, float>> matchVec(searchLocationsSize);
+					cv::Vec3b pixel1 = pixelBuffer[centerIndex];
+					for (int j = 0; j < searchLocationsSize; j++) {
+						cv::Point point2(searchLocations[j].x + searchRect.x, searchLocations[j].y + searchRect.y);
+						cv::Vec3b pixel2 = pixelBuffer[(point2.y * bounds.width) + point2.x];
+						float v1 = (float)(centerPoint.x - point2.x) * adjBoundsWidth;
+						float v2 = (float)(centerPoint.y - point2.y) * adjBoundsHeight;
+						int v3 = pixel1[0] - pixel2[0];
+						int v4 = pixel1[1] - pixel2[1];
+						int v5 = pixel1[2] - pixel2[2];
+						matchVec[j] = std::make_pair(j, v1 * v1 + v2 * v2 + (float)(v3 * v3 + v4 * v4 + v5 * v5));
+					}
+
+					// sort ascending according to distance
+					std::sort(matchVec.begin(), matchVec.end(), [](auto& left, auto& right) {
+						return left.second < right.second;
+						});
+
+					cv::Point topMatch = searchLocations[matchVec[0].first];
+					topMatch = cv::Point(topMatch.x + searchRect.x, topMatch.y + searchRect.y);
+					int topMatchIndex = (topMatch.y * bounds.width) + topMatch.x;
+
+					countBuffer[topMatchIndex] = countBuffer[centerIndex] + countBuffer[topMatchIndex];
+					countBuffer[centerIndex] = 0;
+					substitutionVec[v][substitutionIndexVec[v]] = labelsBuffer[centerIndex];
+					substitutionVec[v][substitutionIndexVec[v] + 1] = labelsBuffer[topMatchIndex];
+					substitutionIndexVec[v] += 2;
+				}
+			}
+			smallMask.release();
+			});
+
+
+		robin_hood::unordered_flat_map<int, int> clusterDict;
+		clusterDict.reserve(sumRemoved);
+
+		std::vector< robin_hood::unordered_flat_map<int, int>> clusterDictVec(neighbourCount);
+		for (int i = 0; i < neighbourCount; i++) {
+			clusterDictVec[i] = robin_hood::unordered_flat_map<int, int>();
+			clusterDictVec[i].reserve(substitutionIndexVec[i] / 2);
+		}
+
+		std::for_each(std::execution::par_unseq, indexVec.begin(), indexVec.end(), [&clusterDictVec, &substitutionVec, &substitutionIndexVec](int& v) {
+			for (int j = 0; j < substitutionIndexVec[v]; j += 2) {
+				clusterDictVec[v].emplace(std::make_pair(substitutionVec[v][j], substitutionVec[v][j + 1]));
+			}
+			});
+
+		for (int i = 0; i < neighbourCount; i++) {
+			clusterDict.insert(clusterDictVec[i].begin(), clusterDictVec[i].end());
+		}
+
+
+				if (false) {
+			// search by quads
+			// pairs of labels from -> to
+			int quadSize = (int)(horzLength * vertLength / 4.0f);
+			int** substitutionVec = new int* [neighbourCount];
+			int* substitutionIndexVec = new int[neighbourCount];
+			for (int i = 0; i < neighbourCount; i++) {
+				substitutionVec[i] = new int[quadSize * 2];
+				substitutionIndexVec[i] = 0;
+			}
+
+			cv::Mat largeFullMask;
+			cv::compare(countMat, cutoff, largeFullMask, cv::CMP_GT);
+
+			// get buffer with large locations
+			std::vector<cv::Point> largeLocations;
+			cv::findNonZero(largeFullMask, largeLocations);
+			cv::Point* largeBuffer = new cv::Point[largeLocations.size()];
+			int largeLocationsSize = (int)largeLocations.size();
+			memcpy(largeBuffer, largeLocations.data(), largeLocationsSize * sizeof(cv::Point));
+
+			// remove small clusters
+			std::for_each(std::execution::par_unseq, indexVec.begin(), indexVec.end(), [&seedRects, &smallFullMask, &largeBuffer, &largeLocationsSize, &pixelBuffer, &countBuffer, &labelsBuffer, &bounds, &substitutionVec, &substitutionIndexVec](int& v) {
+				cv::Rect seedRect = seedRects[v];
+				cv::Mat smallMask = smallFullMask(seedRect);
+				int count = cv::countNonZero(smallMask);
+				if (count > 0) {
+					float adjBoundsWidth = 255.0f / (float)bounds.width;
+					float adjBoundsHeight = 255.0f / (float)bounds.height;
+
+					std::vector<cv::Point> smallLocations, searchLocations;
+					cv::findNonZero(smallMask, smallLocations);
+
+					std::vector<cv::Point>::iterator itPoint;
+					for (itPoint = smallLocations.begin(); itPoint != smallLocations.end(); ++itPoint) {
+						cv::Point centerPoint(itPoint->x + seedRect.x, itPoint->y + seedRect.y);
+						int centerIndex = (centerPoint.y * bounds.width) + centerPoint.x;
+						cv::Rect searchRect;
+						searchLocations.clear();
+						searchLocations.reserve(largeLocationsSize);
+						int searchLocationsSize;
+						int searchMul = 1;
+
+						// expand search until sufficient neighbours found
+						do {
+							int mergeRadius = mergeMul * searchMul;
+							int searchLeft = centerPoint.x - mergeRadius;
+							int searchTop = centerPoint.y - mergeRadius;
+							int searchRight = searchLeft + (mergeRadius * 2);
+							int searchBottom = searchTop + (mergeRadius * 2);
+
+							for (int i = 0; i < largeLocationsSize; i++) {
+								cv::Point point = largeBuffer[i];
+								if (point.x >= searchLeft && point.x <= searchRight && point.y >= searchTop && point.y <= searchBottom) {
+									searchLocations.push_back(point);
+								}
+							}
+
+							searchLocationsSize = (int)searchLocations.size();
+							searchMul++;
+						} while (searchLocationsSize < minSearchNeighbours);
+
+						std::vector<std::pair<int, float>> matchVec(searchLocationsSize);
+						cv::Vec3b pixel1 = pixelBuffer[centerIndex];
+						for (int j = 0; j < searchLocationsSize; j++) {
+							cv::Point point2(searchLocations[j].x + searchRect.x, searchLocations[j].y + searchRect.y);
+							cv::Vec3b pixel2 = pixelBuffer[(point2.y * bounds.width) + point2.x];
+							float v1 = (float)(centerPoint.x - point2.x) * adjBoundsWidth;
+							float v2 = (float)(centerPoint.y - point2.y) * adjBoundsHeight;
+							int v3 = pixel1[0] - pixel2[0];
+							int v4 = pixel1[1] - pixel2[1];
+							int v5 = pixel1[2] - pixel2[2];
+							matchVec[j] = std::make_pair(j, v1 * v1 + v2 * v2 + (float)(v3 * v3 + v4 * v4 + v5 * v5));
+						}
+
+						// sort ascending according to distance
+						std::sort(matchVec.begin(), matchVec.end(), [](auto& left, auto& right) {
+							return left.second < right.second;
+							});
+
+						cv::Point topMatch = searchLocations[matchVec[0].first];
+						topMatch = cv::Point(topMatch.x + searchRect.x, topMatch.y + searchRect.y);
+						int topMatchIndex = (topMatch.y * bounds.width) + topMatch.x;
+
+						countBuffer[topMatchIndex] = countBuffer[centerIndex] + countBuffer[topMatchIndex];
+						countBuffer[centerIndex] = 0;
+						substitutionVec[v][substitutionIndexVec[v]] = labelsBuffer[centerIndex];
+						substitutionVec[v][substitutionIndexVec[v] + 1] = labelsBuffer[topMatchIndex];
+						substitutionIndexVec[v] += 2;
+					}
+				}
+				smallMask.release();
+				});
+
+			// create map
+			int sumRemoved = std::accumulate(substitutionIndexVec, substitutionIndexVec + neighbourCount, 0) / 2;
+			robin_hood::unordered_flat_map<int, int> clusterDict;
+			clusterDict.reserve(sumRemoved);
+
+			for (int i = 0; i < neighbourCount; i++) {
+				for (int j = 0; j < substitutionIndexVec[i]; j += 2) {
+					clusterDict.emplace(std::make_pair(substitutionVec[i][j], substitutionVec[i][j + 1]));
+				}
+			}
+
+			// create process vector
+			std::vector<std::pair<int, int>> processVec(neighbourCount);
+			int processDiv = indexSize / neighbourCount;
+			int processCurrent = 0;
+			for (int i = 0; i < neighbourCount - 1; i++) {
+				processVec[i] = std::make_pair(processCurrent, processCurrent + processDiv);
+				processCurrent += processDiv;
+			}
+			processVec[neighbourCount - 1] = std::make_pair(processCurrent, indexSize);
+
+			std::for_each(std::execution::seq, processVec.begin(), processVec.end(), [&seedRects, &labelsBuffer, &clusterDict](std::pair<int, int>& p) {
+				for (int j = p.first; j < p.second; j++) {
+					int label = labelsBuffer[j];
+					auto search = clusterDict.find(label);
+					if (search != clusterDict.end()) {
+						labelsBuffer[j] = search->second;
+					}
+				}
+				});
+
+			largeFullMask.release();
+
+			for (int i = 0; i < neighbourCount; i++) {
+				delete[] substitutionVec[i];
+			}
+			delete[] substitutionVec;
+			delete[] substitutionIndexVec;
+			delete[] largeBuffer;
+		}
+
+
+
+	cv::Mat labMat;
+	cv::cvtColor(mat(bounds), labMat, cv::COLOR_BGR2Lab);
+	cv::medianBlur(labMat, labMat, 3);
+	std::vector<cv::Mat> diffFloatVecB(labChannels);
+	CIEDE::normaliseLab(labMat, &diffFloatVecB, (float)USHRT_MAX);
+	cv::Mat multiplier = CIEDE::getMultiplier(diffFloatVecB[0], windowB);
+
+
+	static cv::Mat getMultiplier(const cv::Mat& lum, const cv::Rect& ROI);
+	static void compareNormalisedE76UMat(const std::vector<cv::Mat>& diffFloatVec, const cv::Mat& multiplier, const cv::Rect& ROI1, const cv::Rect& ROI2, cv::Mat* returnMat);
+
+// gets luminance multiplier, premultiplied with E76ADH
+cv::Mat CIEDE::getMultiplier(const cv::Mat& lum, const cv::Rect& ROI)
+{
+	double meanLuminance = cv::mean(lum(ROI))[0];
+
+	const double adjustment = 0.5;
+	double adjLuminance = 255.0 - ((255.0 - meanLuminance) * adjustment);
+
+	// get luminance multiplier -> truncate at meanLuminance -> normalise to 0-1
+	cv::Mat multiplier(lum.rows, lum.cols, CV_32FC1);
+	multiplier.setTo(E76ADH / 2.0f);
+	cv::threshold(lum(ROI), multiplier(ROI), adjLuminance, 255.0, cv::THRESH_TRUNC);
+	cv::normalize(multiplier(ROI), multiplier(ROI), 0.0f, E76ADH, cv::NORM_MINMAX);
+
+	return multiplier;
+}
+
+// makes an E76 colour comparison between two normalised UMats
+void CIEDE::compareNormalisedE76UMat(const std::vector<cv::Mat>& diffFloatVec, const cv::Mat& multiplier, const cv::Rect& ROI1, const cv::Rect& ROI2, cv::Mat* returnMat)
+{
+	assert(diffFloatVec.size() == labChannels);
+	assert(ROI1.width == ROI2.width && ROI1.height == ROI2.height);
+
+	std::vector<cv::Mat> diffFloatTempVec(labChannels);
+	for (int i = 0; i < labChannels; i++) {
+		cv::subtract(diffFloatVec[i](ROI1), diffFloatVec[i](ROI2), diffFloatTempVec[i]);
+		cv::multiply(diffFloatTempVec[i], diffFloatTempVec[i], diffFloatTempVec[i]);
+	}
+
+	cv::Mat multiplierAve;
+	cv::add(diffFloatTempVec[1], diffFloatTempVec[0], diffFloatTempVec[0]);
+	cv::add(diffFloatTempVec[2], diffFloatTempVec[0], diffFloatTempVec[0]);
+	cv::sqrt(diffFloatTempVec[0], diffFloatTempVec[0]);
+	cv::addWeighted(multiplier(ROI1), 0.5, multiplier(ROI2), 0.5, 0.0, multiplierAve);
+	cv::multiply(diffFloatTempVec[0], multiplierAve, *returnMat);
+
+	// clean up
+	for (int i = 0; i < labChannels; i++) {
+		diffFloatTempVec[i].release();
+	}
+}
+
+
+		cv::add(process1U, NOISE, process1U);
+		process1U.convertTo(*labelsMat, CV_16U);
+
+
+	indexSize = bounds.height * bounds.width;
+	clusterSize = (int)(1.1f * (float)(bounds.width * bounds.height) / (float)superpixels);
+	smallClusters = indexSize / smallClustersDiv;
+
+	// set labels to unclassified
+	if (labelsMat->empty()) {
+		*labelsMat = cv::Mat(imageHeight, imageWidth, CV_16UC1, cv::Scalar(NONE));
+	}
+	else if (labelsMat->rows != imageHeight || labelsMat->cols != imageWidth || labelsMat->type() != CV_16UC1) {
+		labelsMat->release();
+		*labelsMat = cv::Mat(imageHeight, imageWidth, CV_16UC1, cv::Scalar(NONE));
+	}
+	else {
+		labelsMat->setTo(NONE);
+	}
+	(*labelsMat)(bounds).setTo(UNCLASSIFIED);
+
+	// 1) divide bounds area into uniformly distributed rectangular segments
+	int shortCount = (int)floorf(sqrtf((float)concurrentthreads));
+	int longCount = concurrentthreads / shortCount;
+	int horzDiv = bounds.width > bounds.height ? longCount : shortCount;
+	int vertDiv = bounds.width > bounds.height ? shortCount : longCount;
+	float horzLength = (float)bounds.width / (float)horzDiv;
+	float vertLength = (float)bounds.height / (float)vertDiv;
+
+	// 2) get array of seed rects
+	std::vector<cv::Rect> seedRects(horzDiv * vertDiv);
+	for (int y = 0; y < vertDiv; y++) {
+		for (int x = 0; x < horzDiv; x++) {
+			int xStart = bounds.x + (int)((float)x * horzLength);
+			int yStart = bounds.y + (int)((float)y * vertLength);
+			seedRects[(y * horzDiv) + x] = cv::Rect(xStart, yStart, (int)(x == horzDiv - 1 ? bounds.x + bounds.width - xStart : horzLength), (int)(y == vertDiv - 1 ? bounds.y + bounds.height - yStart : vertLength));
+		}
+	}
+
+	// get initial rect and umat
+	cv::Rect windowB(1, 1, bounds.width, bounds.height);
+
+	// 3) initialise normalised lab values and multiplier
+	cv::UMat labMatU;
+	cv::cvtColor(mat(bounds), labMatU, cv::COLOR_BGR2Lab);
+	cv::medianBlur(labMatU, labMatU, 3);
+	std::vector<cv::UMat> diffFloatVecBU(labChannels);
+	CIEDE::normaliseLab(labMatU, &diffFloatVecBU, (float)USHRT_MAX);
+	cv::UMat multiplierU = CIEDE::getMultiplier(diffFloatVecBU[0], windowB);
+
+	// 4) get adjusted tolerance = (100 / average length (horz/vert)) x sqrt(3) [ie. euclidean lab colour distance sqrt(l2 + a2 + b2)] x tolerance100
+	float adjTolerance = (200.0f / (imageWidth + imageHeight)) * sqrtf(3) * tolerance100;
+
+	// 5) create vector of neighbour points and locations
+	if (neighbourVecXS.size() == 0 || neighbourVecPointSBU.size() == 0 || neighbourVecXS[0].cols * neighbourVecXS[0].rows != indexSize || (neighbourVecPointSBU[0].cols - 2) * (neighbourVecPointSBU[0].rows - 2) != indexSize) {
+		releaseSUMats();
+		neighbourVecXS.reserve(neighbourCount);
+		neighbourVecYS.reserve(neighbourCount);
+		neighbourVecPointSBU.reserve(2);
+
+		// initialise neighbourVecPoint with coordinates
+		neighbourVecPointSBU.push_back(cv::UMat(bounds.height + 2, bounds.width + 2, CV_32SC1));
+		neighbourVecPointSBU.push_back(cv::UMat(bounds.height + 2, bounds.width + 2, CV_32SC1));
+		neighbourVecPointSBU[0].row(0).setTo(NONE);
+		neighbourVecPointSBU[0].row(neighbourVecPointSBU[0].rows - 1).setTo(NONE);
+		neighbourVecPointSBU[0].col(0).setTo(NONE);
+		neighbourVecPointSBU[0].col(neighbourVecPointSBU[0].cols - 1).setTo(NONE);
+		neighbourVecPointSBU[1].row(0).setTo(NONE);
+		neighbourVecPointSBU[1].row(neighbourVecPointSBU[1].rows - 1).setTo(NONE);
+		neighbourVecPointSBU[1].col(0).setTo(NONE);
+		neighbourVecPointSBU[1].col(neighbourVecPointSBU[1].cols - 1).setTo(NONE);
+		for (int x = 0; x < bounds.width; x++) {
+			neighbourVecPointSBU[0].col(x + 1).setTo(x);
+		}
+		for (int y = 0; y < bounds.height; y++) {
+			neighbourVecPointSBU[1].row(y + 1).setTo(y);
+		}
+
+		// initialise neighbourVecX/Y with empty UMats
+		for (int i = 0; i < neighbourCount; i++) {
+			neighbourVecXS.push_back(cv::Mat(bounds.height, bounds.width, CV_32SC1));
+			neighbourVecYS.push_back(cv::Mat(bounds.height, bounds.width, CV_32SC1));
+		}
+	}
+
+	// iterate through each neighbour displacement
+	float* neighbourFloatBuffer = new float[neighbourCount * indexSize];
+	cv::UMat compareU(bounds.height, bounds.width, CV_32FC1);
+	compareU.setTo(adjTolerance);
+	cv::UMat resultU(bounds.height, bounds.width, CV_8UC1);
+	for (int i = 0; i < neighbourCount; i++) {
+		cv::UMat neighbourDiffFloatU;
+		cv::Rect ROI2(1 + neighbourLoc[i].x, 1 + neighbourLoc[i].y, bounds.width, bounds.height);
+		CIEDE::compareNormalisedE76UMat(diffFloatVecBU, multiplierU, windowB, ROI2, &neighbourDiffFloatU);
+
+		// compare difference with the tolerance threshold and copy the point location to neighbourVecXU/Y if included
+		// if point not included, then both X & Y values are set to NONE
+		cv::compare(neighbourDiffFloatU, compareU, resultU, cv::CMP_LE);
+		neighbourVecXS[i].setTo(NONE);
+		neighbourVecYS[i].setTo(NONE);
+
+		int dispX = neighbourLoc[i].x;
+		int dispY = neighbourLoc[i].y;
+		cv::Rect dispBounds(dispX + 1, dispY + 1, bounds.width, bounds.height);
+		neighbourVecPointSBU[0](dispBounds).copyTo(neighbourVecXS[i], resultU);
+		neighbourVecPointSBU[1](dispBounds).copyTo(neighbourVecYS[i], resultU);
+
+		// copy to float buffer
+		cv::Mat neighbourDiffFloat = neighbourDiffFloatU.getMat(cv::ACCESS_READ);
+		memcpy(neighbourFloatBuffer + (i * indexSize), (float*)neighbourDiffFloat.data, indexSize * sizeof(float));
+		neighbourDiffFloat.release();
+		neighbourDiffFloatU.release();
+	}
+
+	// clean up
+	for (int i = 0; i < labChannels; i++) {
+		diffFloatVecBU[i].release();
+	}
+	compareU.release();
+	resultU.release();
+	multiplierU.release();
+
+	cv::Mat labMat = labMatU.getMat(cv::ACCESS_READ);
+
+	// create buffers and initialise
+	int* neighbourBuffer = new int[neighbourCount * 2 * indexSize];
+	int* clusterBuffer = new int[indexSize];
+	int* pointBuffer = new unsigned short[indexSize * 2]
+	unsigned short* labelsBuffer = new unsigned short[indexSize];
+	int* countBuffer = new int[indexSize]{};
+	cv::Vec3b* pixelBuffer = new cv::Vec3b[indexSize];
+	memcpy(pixelBuffer, labMat.data, indexSize * sizeof(cv::Vec3b));
+	std::vector<int*> offsetVec(neighbourCount);
+	for (int i = 0; i < neighbourCount; i++) {
+		offsetVec[i] = new int[clusterSize];
+	}
+
+	if (neighbourBuffer != NULL && labelsBuffer != NULL) {
+		for (int i = 0; i < neighbourCount; i++) {
+			int indexX = i * indexSize;
+			int indexY = indexX + (neighbourCount * indexSize);
+
+			memcpy(neighbourBuffer + indexX, (int*)neighbourVecXS[i].data, indexSize * sizeof(int));
+			memcpy(neighbourBuffer + indexY, (int*)neighbourVecYS[i].data, indexSize * sizeof(int));
+		}
+
+		// create atomic vector for labels
+		memcpy(labelsBuffer, labelsMat->data, indexSize * sizeof(unsigned short));
+
+		// start at the center of the rect, then run through the remainder
+		int clusterCapacity = 0;
+		int indexStep = 1 << 13;
+
+		std::vector<int> indexVec(neighbourCount);
+		std::iota(indexVec.begin(), indexVec.end(), 0);
+
+		std::for_each(std::execution::par_unseq, indexVec.begin(), indexVec.end(), [&](int& v) {
+			unsigned short clusterID = NOISE + 1 + (indexStep * v);
+			cv::Rect seedRect = seedRects[v];
+			for (int y = seedRect.y; y < seedRect.y + seedRect.height; y++) {
+				for (int x = seedRect.x; x < seedRect.x + seedRect.width; x++) {
+					expandCluster(labMat, neighbourBuffer, labelsBuffer, offsetVec[v], countBuffer, bounds.size(), cv::Point(x, y), &clusterCapacity, &clusterID);
+				}
+			}
+			});
+
+		// get cutoff size for clusters
+		std::vector<int> countVec(indexSize);
+		memcpy(countVec.data(), countBuffer, indexSize * sizeof(int));
+		countVec.erase(std::remove_if(std::execution::par_unseq,
+			countVec.begin(), countVec.end(),
+			[&](const int& x) {
+				return x < smallClusters;
+			}), countVec.end());
+
+		// sort descending
+		std::sort(std::execution::par_unseq, countVec.begin(), countVec.end(), [](auto& left, auto& right) {
+			return left > right;
+			});
+
+		int cutoff = MAX(smallClusters, countVec[MIN(countVec.size() - 1, superpixels - 1)]);
+		
+		// remove noise
+		cv::UMat process1U, process2U;
+		std::vector<cv::Point> findLocations;
+		std::vector<cv::Point>::iterator itPoint;
+		cv::Mat countMat(bounds.height, bounds.width, CV_32SC1);
+		memcpy(countMat.data, countBuffer, indexSize * sizeof(int));
+
+		// get large clusters
+		robin_hood::unordered_flat_set<unsigned short> largeDict;
+		largeDict.reserve(superpixels);
+		cv::compare(countMat, cutoff, process1U, cv::CMP_GT);
+		cv::findNonZero(process1U, findLocations);
+		for (itPoint = findLocations.begin(); itPoint != findLocations.end(); ++itPoint) {
+			unsigned short label = labelsBuffer[(itPoint->y * bounds.width) + itPoint->x];
+			largeDict.insert(label);
+		}
+
+		// create process vector
+		std::vector<std::pair<int, int>> processVec(neighbourCount);
+		int processDiv = indexSize / neighbourCount;
+		int processCurrent = 0;
+		for (int i = 0; i < neighbourCount - 1; i++) {
+			processVec[i] = std::make_pair(processCurrent, processCurrent + processDiv);
+			processCurrent += processDiv;
+		}
+		processVec[neighbourCount - 1] = std::make_pair(processCurrent, indexSize);
+
+		BYTE* maskBuffer = new BYTE[indexSize]{};
+
+		std::for_each(std::execution::par_unseq, processVec.begin(), processVec.end(), [&labelsBuffer, &maskBuffer, &largeDict](std::pair<int, int>& p) {
+			for (int j = p.first; j < p.second; j++) {
+				if (!largeDict.contains(labelsBuffer[j])) {
+					maskBuffer[j] = 255;
+				}
+			}
+			});
+
+		cv::Mat smallMask(bounds.height, bounds.width, CV_8UC1);
+		memcpy(smallMask.data, maskBuffer, indexSize);
+
+		cv::distanceTransform(smallMask, process1U, cv::DIST_L1, 3, CV_8U);
+
+		// concentric filling of mask
+		double minVal, maxVal;
+		cv::minMaxLoc(process1U, &minVal, &maxVal);
+		int maxValInt = (int)maxVal;
+		if (maxValInt > 0) {
+			std::vector<std::pair<unsigned short, float>> neighbourLabels;
+			neighbourLabels.reserve(neighbourCount);
+
+			for (int i = 1; i <= maxValInt; i++) {
+				cv::compare(process1U, i, process2U, cv::CMP_EQ);
+				cv::findNonZero(process2U, findLocations);
+
+				/// parallelise at a later stage if count > 100
+				cv::Mat noiseMat = process2U.getMat(cv::ACCESS_READ);
+				memcpy(maskBuffer, noiseMat.data, indexSize);
+				noiseMat.release();
+
+				for (itPoint = findLocations.begin(); itPoint != findLocations.end(); ++itPoint) {
+					neighbourLabels.clear();
+					for (int j = 0; j < neighbourCount; j++) {
+						int dispX = itPoint->x + neighbourLoc[j].x;
+						int dispY = itPoint->y + neighbourLoc[j].y;
+						int offset = (dispY * bounds.width) + dispX;
+
+						if (offset >= 0 && offset < indexSize && maskBuffer[offset] == 0) {
+							neighbourLabels.push_back(std::make_pair(labelsBuffer[offset], neighbourFloatBuffer[offset + (j * indexSize)]));
+						}
+					}
+
+					// sort ascending
+					std::sort(neighbourLabels.begin(), neighbourLabels.end(), [](auto& left, auto& right) {
+						return left.second < right.second;
+						});
+
+					labelsBuffer[(itPoint->y * bounds.width) + itPoint->x] = neighbourLabels[0].first;
+				}
+			}
+		}
+
+		// copy to labels and remove noise
+		memcpy(labelsMat->data, labelsBuffer, indexSize * sizeof(unsigned short));
+
+		delete[] maskBuffer;
+		process1U.release();
+		process2U.release();
+		countMat.release();
+		smallMask.release();
+
+		auto tstart1 = std::chrono::high_resolution_clock::now();
+
+
+		auto tend1 = std::chrono::high_resolution_clock::now();
+		int time1 = (int)std::chrono::duration_cast<std::chrono::microseconds>(tend1 - tstart1).count();
+
+
+
+		auto tstart2 = std::chrono::high_resolution_clock::now();
+
+
+		auto tend2 = std::chrono::high_resolution_clock::now();
+		int time2 = (int)std::chrono::duration_cast<std::chrono::microseconds>(tend2 - tstart2).count();
+
+
+
+		int tester = 5;
+	}
+
+	// clean up
+	labMat.release();
+	labMatU.release();
+	delete[] neighbourFloatBuffer;
+	delete[] neighbourBuffer;
+	delete[] labelsBuffer;
+	delete[] countBuffer;
+	delete[] pixelBuffer;
+	for (int i = 0; i < neighbourCount; i++) {
+		delete[] offsetVec[i];
+	}
+
+	return 0;
+
+
+
+			robin_hood::unordered_flat_map<int, int> tester;
+			for (int i = 0; i < indexSize; i++) {
+				int currentLabel = labelsBuffer[i];
+				if (!tester.contains(currentLabel)) {
+					tester.emplace(std::make_pair(currentLabel, 0));
+				}
+				tester[currentLabel]++;
+			}
+
+			std::vector<std::pair<int, int>> testoo;
+			testoo.reserve(tester.size());
+			robin_hood::unordered_flat_map<int, int>::iterator itTester;
+			for (itTester = tester.begin(); itTester != tester.end(); ++itTester) {
+				testoo.push_back(std::make_pair(itTester->first, itTester->second));
+			}
+
+			std::sort(std::execution::par_unseq, testoo.begin(), testoo.end(), [](auto& left, auto& right) {
+				return left.second > right.second;
+				});
+
+
+				ScanSegment::ScanSegment(int concurrentthreads)
+{
+	ScanSegment::concurrentthreads = concurrentthreads;
+}
+
+ScanSegment::~ScanSegment()
+{
+	releaseSUMats();
+}
+
+int ScanSegment::segment(const cv::Mat& mat, const cv::Rect& bounds, cv::Mat* labelsMat, int superpixels)
+{
+	int imageWidth = mat.cols;
+	int imageHeight = mat.rows;
+	indexSize = bounds.height * bounds.width;
+	if (indexSize < INT_MAX) {
+		clusterSize = (int)(1.1f * (float)(bounds.width * bounds.height) / (float)superpixels);
+		smallClusters = indexSize / smallClustersDiv;
+
+		// set labels to unclassified
+		if (labelsMat->empty()) {
+			*labelsMat = cv::Mat(imageHeight, imageWidth, CV_32SC1, cv::Scalar(NONE));
+		}
+		else if (labelsMat->rows != imageHeight || labelsMat->cols != imageWidth || labelsMat->type() != CV_32SC1) {
+			labelsMat->release();
+			*labelsMat = cv::Mat(imageHeight, imageWidth, CV_32SC1, cv::Scalar(NONE));
+		}
+		else {
+			labelsMat->setTo(NONE);
+		}
+		(*labelsMat)(bounds).setTo(UNCLASSIFIED);
+
+		// 1) divide bounds area into uniformly distributed rectangular segments
+		int shortCount = (int)floorf(sqrtf((float)concurrentthreads));
+		int longCount = concurrentthreads / shortCount;
+		int horzDiv = bounds.width > bounds.height ? longCount : shortCount;
+		int vertDiv = bounds.width > bounds.height ? shortCount : longCount;
+		float horzLength = (float)bounds.width / (float)horzDiv;
+		float vertLength = (float)bounds.height / (float)vertDiv;
+
+		// 2) get array of seed rects
+		std::vector<cv::Rect> seedRects(horzDiv * vertDiv);
+		for (int y = 0; y < vertDiv; y++) {
+			for (int x = 0; x < horzDiv; x++) {
+				int xStart = bounds.x + (int)((float)x * horzLength);
+				int yStart = bounds.y + (int)((float)y * vertLength);
+				seedRects[(y * horzDiv) + x] = cv::Rect(xStart, yStart, (int)(x == horzDiv - 1 ? bounds.x + bounds.width - xStart : horzLength), (int)(y == vertDiv - 1 ? bounds.y + bounds.height - yStart : vertLength));
+			}
+		}
+
+		// get initial rect and umat
+		cv::Rect windowB(1, 1, bounds.width, bounds.height);
+
+		// 3) initialise normalised lab values and multiplier
+		cv::UMat labMatU;
+		cv::cvtColor(mat(bounds), labMatU, cv::COLOR_BGR2Lab);
+		cv::medianBlur(labMatU, labMatU, 3);
+		std::vector<cv::UMat> diffFloatVecBU(labChannels);
+		CIEDE::normaliseLab(labMatU, &diffFloatVecBU, (float)USHRT_MAX);
+		cv::UMat multiplierU = CIEDE::getMultiplier(diffFloatVecBU[0], windowB);
+
+		// 4) get adjusted tolerance = (100 / average length (horz/vert)) x sqrt(3) [ie. euclidean lab colour distance sqrt(l2 + a2 + b2)] x tolerance100
+		float adjTolerance = (200.0f / (imageWidth + imageHeight)) * sqrtf(3) * tolerance100;
+
+		// 5) create vector of neighbour points and locations
+		if (neighbourVecXS.size() == 0 || neighbourVecPointSBU.size() == 0 || neighbourVecXS[0].cols * neighbourVecXS[0].rows != indexSize || (neighbourVecPointSBU[0].cols - 2) * (neighbourVecPointSBU[0].rows - 2) != indexSize) {
+			releaseSUMats();
+			neighbourVecXS.reserve(neighbourCount);
+			neighbourVecYS.reserve(neighbourCount);
+			neighbourVecPointSBU.reserve(2);
+
+			// initialise neighbourVecPoint with coordinates
+			neighbourVecPointSBU.push_back(cv::UMat(bounds.height + 2, bounds.width + 2, CV_32SC1));
+			neighbourVecPointSBU.push_back(cv::UMat(bounds.height + 2, bounds.width + 2, CV_32SC1));
+			neighbourVecPointSBU[0].row(0).setTo(NONE);
+			neighbourVecPointSBU[0].row(neighbourVecPointSBU[0].rows - 1).setTo(NONE);
+			neighbourVecPointSBU[0].col(0).setTo(NONE);
+			neighbourVecPointSBU[0].col(neighbourVecPointSBU[0].cols - 1).setTo(NONE);
+			neighbourVecPointSBU[1].row(0).setTo(NONE);
+			neighbourVecPointSBU[1].row(neighbourVecPointSBU[1].rows - 1).setTo(NONE);
+			neighbourVecPointSBU[1].col(0).setTo(NONE);
+			neighbourVecPointSBU[1].col(neighbourVecPointSBU[1].cols - 1).setTo(NONE);
+			for (int x = 0; x < bounds.width; x++) {
+				neighbourVecPointSBU[0].col(x + 1).setTo(x);
+			}
+			for (int y = 0; y < bounds.height; y++) {
+				neighbourVecPointSBU[1].row(y + 1).setTo(y);
+			}
+
+			// initialise neighbourVecX/Y with empty UMats
+			for (int i = 0; i < neighbourCount; i++) {
+				neighbourVecXS.push_back(cv::Mat(bounds.height, bounds.width, CV_32SC1));
+				neighbourVecYS.push_back(cv::Mat(bounds.height, bounds.width, CV_32SC1));
+			}
+		}
+
+		// iterate through each neighbour displacement
+		cv::UMat compareU(bounds.height, bounds.width, CV_32FC1);
+		compareU.setTo(adjTolerance);
+		cv::UMat resultU(bounds.height, bounds.width, CV_8UC1);
+		for (int i = 0; i < neighbourCount; i++) {
+			cv::UMat neighbourDiffFloatU;
+			cv::Rect ROI2(1 + neighbourLoc[i].x, 1 + neighbourLoc[i].y, bounds.width, bounds.height);
+			CIEDE::compareNormalisedE76UMat(diffFloatVecBU, multiplierU, windowB, ROI2, &neighbourDiffFloatU);
+
+			// compare difference with the tolerance threshold and copy the point location to neighbourVecXU/Y if included
+			// if point not included, then both X & Y values are set to NONE
+			cv::compare(neighbourDiffFloatU, compareU, resultU, cv::CMP_LE);
+			neighbourVecXS[i].setTo(NONE);
+			neighbourVecYS[i].setTo(NONE);
+
+			int dispX = neighbourLoc[i].x;
+			int dispY = neighbourLoc[i].y;
+			cv::Rect dispBounds(dispX + 1, dispY + 1, bounds.width, bounds.height);
+			neighbourVecPointSBU[0](dispBounds).copyTo(neighbourVecXS[i], resultU);
+			neighbourVecPointSBU[1](dispBounds).copyTo(neighbourVecYS[i], resultU);
+			neighbourDiffFloatU.release();
+		}
+
+		// clean up
+		for (int i = 0; i < labChannels; i++) {
+			diffFloatVecBU[i].release();
+		}
+		compareU.release();
+		resultU.release();
+		multiplierU.release();
+
+		// create neighbour vector
+		std::vector<int> indexNeighbourVec(neighbourCount);
+		std::iota(indexNeighbourVec.begin(), indexNeighbourVec.end(), 0);
+
+		// create process vector
+		std::vector<std::pair<int, int>> indexProcessVec(neighbourCount);
+		int processDiv = indexSize / neighbourCount;
+		int processCurrent = 0;
+		for (int i = 0; i < neighbourCount - 1; i++) {
+			indexProcessVec[i] = std::make_pair(processCurrent, processCurrent + processDiv);
+			processCurrent += processDiv;
+		}
+		indexProcessVec[neighbourCount - 1] = std::make_pair(processCurrent, indexSize);
+
+		// create buffers and initialise
+		int* neighbourBuffer = new int[neighbourCount * 2 * indexSize];
+		int* labelsBuffer = new int[indexSize];
+		int* clusterBuffer = new int[indexSize];
+		int* locationBuffer = new int[indexSize];
+		std::vector<int*> offsetVec(neighbourCount);
+		for (int i = 0; i < neighbourCount; i++) {
+			offsetVec[i] = new int[clusterSize + 1];
+		}
+		std::atomic<int> clusterIndex, locationIndex, clusterID;
+		clusterIndex.store(0);
+		locationIndex.store(0);
+		clusterID.store(1);
+
+		int clusterCount = 0;
+		if (neighbourBuffer != NULL && labelsBuffer != NULL) {
+			for (int i = 0; i < neighbourCount; i++) {
+				int indexX = i * indexSize;
+				int indexY = indexX + (neighbourCount * indexSize);
+
+				memcpy(neighbourBuffer + indexX, (int*)neighbourVecXS[i].data, indexSize * sizeof(int));
+				memcpy(neighbourBuffer + indexY, (int*)neighbourVecYS[i].data, indexSize * sizeof(int));
+			}
+
+			// create atomic vector for labels
+			memcpy(labelsBuffer, labelsMat->data, indexSize * sizeof(int));
+
+			// start at the center of the rect, then run through the remainder
+			std::for_each(std::execution::par_unseq, indexNeighbourVec.begin(), indexNeighbourVec.end(), [&](int& v) {
+				cv::Rect seedRect = seedRects[v];
+				cv::Size boundsSize = bounds.size();
+				for (int y = seedRect.y; y < seedRect.y + seedRect.height; y++) {
+					for (int x = seedRect.x; x < seedRect.x + seedRect.width; x++) {
+						expandCluster(neighbourBuffer, labelsBuffer, clusterBuffer, locationBuffer, offsetVec[v], boundsSize, cv::Point(x, y), &clusterIndex, &locationIndex, &clusterID);
+					}
+				}
+				});
+
+			// get cutoff size for clusters
+			std::vector<int> countVec;
+			int clusterSize = clusterIndex.load();
+			countVec.reserve(clusterSize / 3);
+			for (int i = 1; i < clusterSize; i += 3) {
+				int count = clusterBuffer[i];
+				if (count >= smallClusters) {
+					countVec.push_back(count);
+				}
+			}
+
+			// sort descending
+			std::sort(std::execution::par_unseq, countVec.begin(), countVec.end(), [](auto& left, auto& right) {
+				return left > right;
+				});
+
+			int cutoff = MAX(smallClusters, countVec[MIN(countVec.size() - 1, superpixels - 1)]);
+
+			// create cluster vector
+			std::vector<std::pair<int, int>> indexClusterVec(neighbourCount);
+			int clusterDiv = clusterSize / neighbourCount;
+			int clusterCurrent = 0;
+			for (int i = 0; i < neighbourCount - 1; i++) {
+				indexClusterVec[i] = std::make_pair(clusterCurrent, clusterCurrent + clusterDiv);
+				clusterCurrent += clusterDiv;
+			}
+			indexClusterVec[neighbourCount - 1] = std::make_pair(clusterCurrent, clusterSize);
+
+			BYTE* pixelBuffer = new BYTE[indexSize];
+			std::fill_n(pixelBuffer, indexSize, 255);
+
+			// replace labels for small clusters with NOISE and mark on pixel mask
+			std::for_each(std::execution::par_unseq, indexClusterVec.begin(), indexClusterVec.end(), [&clusterBuffer, &locationBuffer, &pixelBuffer, &cutoff](std::pair<int, int>& p) {
+				for (int i = p.first; i < p.second; i++) {
+					int count = clusterBuffer[(i * 3) + 1];
+					if (count > cutoff) {
+						int offset = clusterBuffer[(i * 3) + 2];
+						for (int j = offset; j < offset + count; j++) {
+							pixelBuffer[locationBuffer[j]] = 0;
+						}
+					}
+				}
+				});
+
+			std::for_each(std::execution::par_unseq, indexProcessVec.begin(), indexProcessVec.end(), [&pixelBuffer, &labelsBuffer](std::pair<int, int>& p) {
+				for (int i = p.first; i < p.second; i++) {
+					if (pixelBuffer[i] > 0) {
+						labelsBuffer[i] = NOISE;
+					}
+				}
+				});
+
+			// iteratively replace border pixels with median
+			cv::Mat pixelMat(bounds.height, bounds.width, CV_8UC1);
+			memcpy(pixelMat.data, pixelBuffer, indexSize);
+
+			cv::UMat distanceU, distanceMaskU;
+			cv::distanceTransform(pixelMat, distanceU, cv::DIST_C, 3);
+			distanceU.convertTo(distanceU, CV_8U);
+
+			double minVal, maxVal;
+			cv::minMaxLoc(distanceU, &minVal, &maxVal);
+			int maxValInt = (int)maxVal;
+
+			if (maxValInt > 0) {
+				std::vector<cv::Point> locatePoints;
+
+				for (int i = 1; i <= maxValInt; i++) {
+					cv::compare(distanceU, i, distanceMaskU, cv::CMP_EQ);
+					cv::findNonZero(distanceMaskU, locatePoints);
+
+					if (locatePoints.size() >= parallelLimit) {
+						// create locate vector
+						int locateSize = (int)locatePoints.size();
+						std::vector<std::pair<int, int>> indexLocateVec(locateSize);
+						int locateDiv = locateSize / neighbourCount;
+						int locateCurrent = 0;
+						for (int i = 0; i < neighbourCount - 1; i++) {
+							indexLocateVec[i] = std::make_pair(locateCurrent, locateCurrent + locateDiv);
+							locateCurrent += locateDiv;
+						}
+						indexLocateVec[neighbourCount - 1] = std::make_pair(locateCurrent, locateSize);
+
+						std::for_each(std::execution::seq, indexLocateVec.begin(), indexLocateVec.end(), [this, &labelsBuffer, &locatePoints, &bounds](std::pair<int, int>& p) {
+							mergeClusters(labelsBuffer, &locatePoints, p.first, p.second, bounds);
+							});
+					}
+					else {
+						mergeClusters(labelsBuffer, &locatePoints, 0, (int)locatePoints.size(), bounds);
+					}
+				}
+			}
+
+			distanceU.release();
+			distanceMaskU.release();
+			pixelMat.release();
+			delete[] pixelBuffer;
+
+			// copy to labels
+			memcpy(labelsMat->data, labelsBuffer, indexSize * sizeof(int));
+
+			clusterCount = (int)std::count_if(countVec.begin(), countVec.end(), [&cutoff](int i) {return i > cutoff; });
+		}
+
+		// clean up
+		labMatU.release();
+		delete[] neighbourBuffer;
+		delete[] labelsBuffer;
+		delete[] clusterBuffer;
+		delete[] locationBuffer;
+		for (int i = 0; i < neighbourCount; i++) {
+			delete[] offsetVec[i];
+		}
+
+		return clusterCount;
+	}
+	else {
+		return -1;
+	}
+}
+
+// merge noise pixels and small clusters
+void ScanSegment::mergeClusters(int* labelsBuffer, std::vector<cv::Point>* locatePoints, int startIndex, int endIndex, const cv::Rect& bounds)
+{
+	cv::Rect innerBounds(1, 1, bounds.width - 2, bounds.height - 2);
+	std::vector<int> neighbourLabels;
+	neighbourLabels.reserve(neighbourCount);
+	std::vector<cv::Point>::iterator itPoint;
+	for (itPoint = locatePoints->begin() + startIndex; itPoint != locatePoints->begin() + endIndex; ++itPoint) {
+		int pointIndex = (itPoint->y * bounds.width) + itPoint->x;
+		neighbourLabels.clear();
+
+		// add to neighbour labels
+		if (innerBounds.contains(*itPoint)) {
+			// no need to screen adjacent points
+			for (int j = 0; j < neighbourCount; j++) {
+				int neighbourLabel = labelsBuffer[((itPoint->y + neighbourLoc[j].y) * bounds.width) + itPoint->x + neighbourLoc[j].x];
+				if (neighbourLabel > 0) {
+					neighbourLabels.push_back(neighbourLabel);
+				}
+			}
+		}
+		else {
+			// need to screen point for boundary
+			for (int j = 0; j < neighbourCount; j++) {
+				cv::Point neighbourPoint(itPoint->x + neighbourLoc[j].x, itPoint->y + neighbourLoc[j].y);
+				if (bounds.contains(neighbourPoint)) {
+					int neighbourLabel = labelsBuffer[(neighbourPoint.y * bounds.width) + neighbourPoint.x];
+					if (neighbourLabel > 0) {
+						neighbourLabels.push_back(neighbourLabel);
+					}
+				}
+			}
+		}
+
+		std::sort(neighbourLabels.begin(), neighbourLabels.end());
+		labelsBuffer[pointIndex] = neighbourLabels[(neighbourLabels.size() - 1) / 2];
+	}
+}
+
+// expand clusters from a point
+void ScanSegment::expandCluster(int* neighbourBuffer, int* labelsBuffer, int* clusterBuffer, int* locationBuffer, int* offsetBuffer, const cv::Size& bounds, const cv::Point& point, std::atomic<int>* clusterIndex, std::atomic<int>* locationIndex, std::atomic<int>* clusterID)
+{
+	int pointIndex = (point.y * bounds.width) + point.x;
+	if (labelsBuffer[pointIndex] == UNCLASSIFIED) {
+		int offsetStart = 0;
+		int offsetEnd = 0;
+		int currentClusterID = clusterID->fetch_add(1);
+		calculateCluster(neighbourBuffer, labelsBuffer, offsetBuffer, &offsetEnd, bounds, pointIndex, currentClusterID);
+
+		if (offsetStart == offsetEnd) {
+			labelsBuffer[pointIndex] = NOISE;
+		}
+		else {
+			// set cluster id and get core point index
+			labelsBuffer[pointIndex] = currentClusterID;
+
+			while (offsetStart < offsetEnd) {
+				int intoffset2 = *(offsetBuffer + offsetStart);
+				offsetStart++;
+				calculateCluster(neighbourBuffer, labelsBuffer, offsetBuffer, &offsetEnd, bounds, intoffset2, currentClusterID);
+			}
+
+			// add origin point
+			offsetBuffer[offsetEnd] = pointIndex;
+			offsetEnd++;
+
+			// store to buffer
+			int currentClusterIndex = clusterIndex->fetch_add(3);
+			int currentLocationIndex = locationIndex->fetch_add(offsetEnd);
+			clusterBuffer[currentClusterIndex] = currentClusterID;
+			clusterBuffer[currentClusterIndex + 1] = offsetEnd;
+			clusterBuffer[currentClusterIndex + 2] = currentLocationIndex;
+			std::copy(offsetBuffer, offsetBuffer + offsetEnd, locationBuffer + currentLocationIndex);
+		}
+	}
+}
+
+void ScanSegment::calculateCluster(int* neighbourBuffer, int* labelsBuffer, int* offsetBuffer, int* offsetEnd, const cv::Size& bounds, int pointIndex, int currentClusterID)
+{
+	for (int i = 0; i < neighbourCount; i++) {
+		if (*offsetEnd < clusterSize) {
+			int offset = (i * indexSize) + pointIndex;
+			int x = neighbourBuffer[offset];
+			if (x != NONE) {
+				int y = neighbourBuffer[offset + (neighbourCount * indexSize)];
+				int intoffset2 = (y * bounds.width) + x;
+				int labelNeighbour = labelsBuffer[intoffset2];
+				if (labelNeighbour == UNCLASSIFIED) {
+					labelsBuffer[intoffset2] = currentClusterID;
+					offsetBuffer[*offsetEnd] = intoffset2;
+					(*offsetEnd)++;
+				}
+			}
+		}
+		else { break; }
+	}
+}
+
+// release all mats
+void ScanSegment::releaseSUMats()
+{
+	std::vector<cv::Mat>::iterator itMat;
+	std::vector<cv::UMat>::iterator itUMat;
+	for (itMat = neighbourVecXS.begin(); itMat != neighbourVecXS.end(); ++itMat) {
+		itMat->release();
+	}
+	for (itMat = neighbourVecYS.begin(); itMat != neighbourVecYS.end(); ++itMat) {
+		itMat->release();
+	}
+	for (itUMat = neighbourVecPointSBU.begin(); itUMat != neighbourVecPointSBU.end(); ++itUMat) {
+		itUMat->release();
+	}
+
+	neighbourVecXS.clear();
+	neighbourVecYS.clear();
+	neighbourVecPointSBU.clear();
+}
+
+
+class ScanSegment
+{
+#define NONE -1
+#define UNCLASSIFIED -2
+#define NOISE -3
+
+public:
+	ScanSegment(int concurrentthreads);
+	~ScanSegment();
+
+	int segment(const cv::Mat& mat, const cv::Rect& bounds, cv::Mat* labelsMat, int superpixels);
+
+private:
+	static const int neighbourCount = 8;							// number of pixel neighbours
+	static const int mergeMul = 15;									// search distance multiplier for merging
+	static const int minSearchNeighbours = 3;						// minimum number of neighbours to search for merging
+	static const int smallClustersDiv = 10000;						// divide total pixels by this to give smallClusters
+	static const int parallelLimit = 100;							// processing above this limit should be parallelised
+	const float tolerance100 = 2.0f;								// colour tolerance for image size of 100x100px
+	int concurrentthreads = 4;										// number of simultaneous concurrent threads
+	int indexSize = 0;												// size of label mat vector
+	int clusterSize = 0;											// max size of clusters
+	int smallClusters = 0;											// clusters below this pixel count are considered small for merging
+	std::vector<cv::Point> neighbourLoc{ cv::Point(-1, -1), cv::Point(0, -1), cv::Point(1, -1), cv::Point(-1, 0), cv::Point(1, 0), cv::Point(-1, 1), cv::Point(0, 1), cv::Point(1, 1) };
+	std::vector<cv::UMat> neighbourVecPointSBU;
+	std::vector<cv::Mat> neighbourVecXS, neighbourVecYS;
+
+	void expandCluster(int* neighbourBuffer, int* labelsBuffer, int* clusterBuffer, int* locationBuffer, int* offsetBuffer, const cv::Size& bounds, const cv::Point& point, std::atomic<int>* clusterIndex, std::atomic<int>* locationIndex, std::atomic<int>* clusterID);
+	void mergeClusters(int* labelsBuffer, std::vector<cv::Point>* locatePoints, int startIndex, int endIndex, const cv::Rect& bounds);
+	void calculateCluster(int* neighbourBuffer, int* labelsBuffer, int* offsetBuffer, int* offsetEnd, const cv::Size& bounds, int pointIndex, int currentClusterID);
+	void releaseSUMats();
+};
+
+
+				if (maxValInt > 0) {
+					std::vector<cv::Point> locatePoints;
+
+					for (int i = 1; i <= maxValInt; i++) {
+						cv::compare(distance, i, distanceMask, cv::CMP_EQ);
+						cv::findNonZero(distanceMask, locatePoints);
+
+						if (locatePoints.size() >= parallelLimit) {
+							// create locate vector
+							int locateSize = (int)locatePoints.size();
+							std::vector<std::pair<int, int>> indexLocateVec(locateSize);
+							int locateDiv = locateSize / neighbourCount;
+							int locateCurrent = 0;
+							for (int i = 0; i < neighbourCount - 1; i++) {
+								indexLocateVec[i] = std::make_pair(locateCurrent, locateCurrent + locateDiv);
+								locateCurrent += locateDiv;
+							}
+							indexLocateVec[neighbourCount - 1] = std::make_pair(locateCurrent, locateSize);
+
+							std::for_each(std::execution::par_unseq, indexLocateVec.begin(), indexLocateVec.end(), [this, &labelsBuffer, &locatePoints, &bounds](std::pair<int, int>& p) {
+								mergeClusters(labelsBuffer, &locatePoints, p.first, p.second, bounds);
+								});
+						}
+						else {
+							mergeClusters(labelsBuffer, &locatePoints, 0, (int)locatePoints.size(), bounds);
+						}
+					}
+				}
+
+								// run distance transform and get max distance
+				cv::Mat distance, distanceMask;
+				cv::distanceTransform(pixelMat, distance, cv::DIST_C, 3);
+				distance.convertTo(distance, CV_8U);
+
+				double minVal, maxVal;
+				cv::minMaxLoc(distance, &minVal, &maxVal);
+				int maxValInt = (int)maxVal;
+				distance.release();
+				distanceMask.release();
+
+
+	void mergeClusters(int* labelsBuffer, std::vector<cv::Point>* locatePoints, int startIndex, int endIndex, const cv::Rect& bounds);
+
+	
+// merge noise pixels and small clusters
+void ScanSegment::mergeClusters(int* labelsBuffer, std::vector<cv::Point>* locatePoints, int startIndex, int endIndex, const cv::Rect& bounds)
+{
+	cv::Rect innerBounds(1, 1, bounds.width - 2, bounds.height - 2);
+	std::vector<int> neighbourLabels;
+	neighbourLabels.reserve(neighbourCount);
+	std::vector<cv::Point>::iterator itPoint;
+	for (itPoint = locatePoints->begin() + startIndex; itPoint != locatePoints->begin() + endIndex; ++itPoint) {
+		int pointIndex = (itPoint->y * bounds.width) + itPoint->x;
+		neighbourLabels.clear();
+
+		// add to neighbour labels
+		if (innerBounds.contains(*itPoint)) {
+			// no need to screen adjacent points
+			for (int j = 0; j < neighbourCount; j++) {
+				int neighbourLabel = labelsBuffer[((itPoint->y + neighbourLoc[j].y) * bounds.width) + itPoint->x + neighbourLoc[j].x];
+				if (neighbourLabel > 0) {
+					neighbourLabels.push_back(neighbourLabel);
+				}
+			}
+		}
+		else {
+			// need to screen point for boundary
+			for (int j = 0; j < neighbourCount; j++) {
+				cv::Point neighbourPoint(itPoint->x + neighbourLoc[j].x, itPoint->y + neighbourLoc[j].y);
+				if (bounds.contains(neighbourPoint)) {
+					int neighbourLabel = labelsBuffer[(neighbourPoint.y * bounds.width) + neighbourPoint.x];
+					if (neighbourLabel > 0) {
+						neighbourLabels.push_back(neighbourLabel);
+					}
+				}
+			}
+		}
+
+		std::sort(neighbourLabels.begin(), neighbourLabels.end());
+		labelsBuffer[pointIndex] = neighbourLabels[(neighbourLabels.size() - 1) / 2];
+	}
+}
+
+
+	int adjLevels = 0;
+	int adjWidth = 0;
+	int adjHeight = 0;
+	if (bounds.width >= bounds.height) {
+		if (adjSuperpixels >= 1040) {
+			adjLevels = 3;
+			adjWidth = 3;
+			adjHeight = 3;
+		}
+		else if (adjSuperpixels >= 800) {
+			adjLevels = 3;
+			adjWidth = 3;
+			adjHeight = 4;
+		}
+		else if (adjSuperpixels >= 600) {
+			adjLevels = 4;
+			adjWidth = 2;
+			adjHeight = 2;
+		}
+		else if (adjSuperpixels >= 400) {
+			adjLevels = 4;
+			adjWidth = 3;
+			adjHeight = 2;
+		}
+		else if (adjSuperpixels >= 260) {
+			adjLevels = 4;
+			adjWidth = 3;
+			adjHeight = 3;
+		}
+		else if (adjSuperpixels >= 200) {
+			adjLevels = 4;
+			adjWidth = 3;
+			adjHeight = 4;
+		}
+		else if (adjSuperpixels >= 150) {
+			adjLevels = 5;
+			adjWidth = 2;
+			adjHeight = 2;
+		}
+		else if (adjSuperpixels >= 100) {
+			adjLevels = 5;
+			adjWidth = 3;
+			adjHeight = 2;
+		}
+		else if (adjSuperpixels >= 50) {
+			adjLevels = 5;
+			adjWidth = 3;
+			adjHeight = 4;
+		}
+		else if (adjSuperpixels >= 25) {
+			adjLevels = 6;
+			adjWidth = 3;
+			adjHeight = 2;
+		}
+		else if (adjSuperpixels >= 17) {
+			adjLevels = 6;
+			adjWidth = 3;
+			adjHeight = 3;
+		}
+		else if (adjSuperpixels >= 12) {
+			adjLevels = 6;
+			adjWidth = 3;
+			adjHeight = 4;
+		}
+		else if (adjSuperpixels >= 9) {
+			adjLevels = 7;
+			adjWidth = 2;
+			adjHeight = 2;
+		}
+		else {
+			adjLevels = 7;
+			adjWidth = 3;
+			adjHeight = 2;
+		}
+	}
+	else {
+		if (adjSuperpixels >= 1040) {
+			adjLevels = 3;
+			adjWidth = 3;
+			adjHeight = 3;
+		}
+		else if (adjSuperpixels >= 800) {
+			adjLevels = 3;
+			adjWidth = 4;
+			adjHeight = 3;
+		}
+		else if (adjSuperpixels >= 600) {
+			adjLevels = 4;
+			adjWidth = 2;
+			adjHeight = 2;
+		}
+		else if (adjSuperpixels >= 400) {
+			adjLevels = 4;
+			adjWidth = 2;
+			adjHeight = 3;
+		}
+		else if (adjSuperpixels >= 260) {
+			adjLevels = 4;
+			adjWidth = 3;
+			adjHeight = 3;
+		}
+		else if (adjSuperpixels >= 200) {
+			adjLevels = 4;
+			adjWidth = 4;
+			adjHeight = 3;
+		}
+		else if (adjSuperpixels >= 150) {
+			adjLevels = 5;
+			adjWidth = 2;
+			adjHeight = 2;
+		}
+		else if (adjSuperpixels >= 100) {
+			adjLevels = 5;
+			adjWidth = 2;
+			adjHeight = 3;
+		}
+		else if (adjSuperpixels >= 50) {
+			adjLevels = 5;
+			adjWidth = 4;
+			adjHeight = 3;
+		}
+		else if (adjSuperpixels >= 25) {
+			adjLevels = 6;
+			adjWidth = 2;
+			adjHeight = 3;
+		}
+		else if (adjSuperpixels >= 17) {
+			adjLevels = 6;
+			adjWidth = 3;
+			adjHeight = 3;
+		}
+		else if (adjSuperpixels >= 12) {
+			adjLevels = 6;
+			adjWidth = 4;
+			adjHeight = 3;
+		}
+		else if (adjSuperpixels >= 9) {
+			adjLevels = 7;
+			adjWidth = 2;
+			adjHeight = 2;
+		}
+		else {
+			adjLevels = 7;
+			adjWidth = 2;
+			adjHeight = 3;
+		}
+	}
+
+
+		cv::Mat bgrMat = mat(bounds).clone();
+	int bgrSize = bgrMat.cols * bgrMat.rows;
+	BYTE* bgrBuffer = new BYTE[bgrSize * 3];
+	memcpy(bgrBuffer, bgrMat.data, bgrSize * 3);
+	unsigned int* argbBuffer = new unsigned int[bgrSize];
+
+	unsigned int value = 0x0000;
+	for (int i = 0; i < bgrSize; i++) {
+		value = 0x0000;
+		value |= (0x00FF0000 & (bgrBuffer[(i * 3) + 2] << 16));
+		value |= (0x0000FF00 & (bgrBuffer[(i * 3) + 1] << 8));
+		value |= (0x000000FF & bgrBuffer[i * 3]);
+		argbBuffer[i] = value;
+	}
+
+	SLIC slic;
+
+		int* segmentation = new int[bgrSize];
+	int clusterCount = 0;
+	int compactness = 10;
+	bool perturbseeds = false;
+
+	slic.DoSuperpixelSegmentation_ForGivenNumberOfSuperpixels(argbBuffer, mat.cols, mat.rows, segmentation, clusterCount, adjSuperpixels, compactness, perturbseeds, iterations);
+
+
+	
+
+	cv::Mat rgbMat;
+	cv::cvtColor(mat(bounds), rgbMat, cv::COLOR_BGR2RGB);
+
+	int indexWidth = bounds.width * bounds.height;
+	image<rgb> rgbIm = image<rgb>(bounds.width, bounds.height, false);
+	memcpy(rgbIm.data, rgbMat.data, indexWidth * sizeof(rgb));
+
+	float sigma = 0.5;
+	float c = 50000.0f / adjSuperpixels;
+	int min_size = 20;
+	int clusterCount = 0;
+
+	image<int>* labels = segment_image_labels(&rgbIm, sigma, c, min_size, &clusterCount);
+
+
+
+	// errors changed in lines 37-41 in segment-image.h
+	// c=10000 give 31 superpixels
+	// c=5000 gives 24 superpixels
+	// c=2000 gives 35 superpixels
+	// c=1000 gives 60 superpixels
+	// c=500 gives 108 superpixels
+	// c=200 gives 217 superpixels
+	// c=100 gives 377 superpixels
+	// c=85 gives 422 superpixels
+	// c=80 gives 434 superpixels
+	// c=75 gives 801 superpixels
+	// c=50 gives 1177 superpixels
+	// c=20 gives 1111 superpixels
+
+
+		// width/height = 200, superpixels = 9
+	// width/height = 150, superpixels = 16
+	// width/height = 100, superpixels = 20
+	// width/height = 70, superpixels = 64
+	// width/height = 50, superpixels = 70
+	// width/height = 40, superpixels = 117
+	// width/height = 35, superpixels = 225
+	// width/height = 30, superpixels = 324
+	// width/height = 25, superpixels = 441
+	// width/height = 20, superpixels = 676
+	// width/height = 10, superpixels = 1617
+	int dimension = 500 / sqrtf((float)adjSuperpixels);
+	int width = dimension;
+	int height = dimension;
+	double directCost = 0.3;
+	double diagonalCost = directCost / sqrt(2);
+	double compactness = 0.045;
+
+	bool isColorImage = true;
+	std::vector<FeatureType> enabledFeatures;
+	enabledFeatures.push_back(Color);
+	enabledFeatures.push_back(Compactness);
+
+	ContourRelaxation<boost::uint16_t> contourRelaxationInst(enabledFeatures);
+	contourRelaxationInst.setCompactnessData(compactness);
+
+	cv::Mat labelImage = createBlockInitialization<boost::uint16_t>(bounds.size(), width, height);
+	cv::Mat imageYCrCb;
+	cv::cvtColor(mat(bounds), imageYCrCb, SEEDS_REVISED_OPENCV_BGR2YCrCb);
+	std::vector<cv::Mat> imageYCrCbChannels;
+	cv::split(imageYCrCb, imageYCrCbChannels);
+
+	contourRelaxationInst.setColorData(imageYCrCbChannels[0], imageYCrCbChannels[1], imageYCrCbChannels[2]);
+
+	cv::Mat relaxedLabelImage;
+	cv::Mat regionMeanImage;
+
+	contourRelaxationInst.relax(labelImage, directCost, diagonalCost, iterations, relaxedLabelImage, regionMeanImage);
+
+
+
+int DStutzSuperpixels::segmentSEEDS(const cv::Mat& mat, const cv::Rect& bounds, cv::Mat* labelsMat, int superpixels, float multiplier, bool merge)
+{
+	int nr_bins = 5;
+	int min_size = 0;
+	float confidence = 0.1f;
+	bool prior = true;
+	bool means = true;
+	int color = 1;
+	int iterations = 2;
+
+	int imageWidth = mat.cols;
+	int imageHeight = mat.rows;
+	int adjSuperpixels = (int)((float)superpixels * multiplier);
+
+	if (labelsMat->empty()) {
+		*labelsMat = cv::Mat(imageHeight, imageWidth, CV_32SC1, cv::Scalar(NONE));
+	}
+	else if (labelsMat->rows != imageHeight || labelsMat->cols != imageWidth || labelsMat->type() != CV_32SC1) {
+		labelsMat->release();
+		*labelsMat = cv::Mat(imageHeight, imageWidth, CV_32SC1, cv::Scalar(NONE));
+	}
+	else {
+		labelsMat->setTo(NONE);
+	}
+
+	cv::Mat labMat;
+	cv::cvtColor(mat(bounds), labMat, cv::COLOR_BGR2Lab);
+
+	int region_width = 2;
+	int region_height = 2;
+	int levels = 2;
+
+	computeHeightWidthLevelsFromSuperpixels(labMat, adjSuperpixels, region_height, region_width, levels);
+
+	SEEDS seeds(labMat.cols, labMat.rows, labMat.channels(), nr_bins, min_size, confidence, prior, means, color);
+	seeds.initialize(labMat, region_height, region_width, levels);
+	seeds.iterate(iterations);
+	int clusterCount = seeds.count_superpixels();
+
+	// relabel
+	UINT** labels = seeds.labels;
+	int boundswidth = labMat.cols;
+	int boundsheight = labMat.rows;
+	for (int y = 0; y < boundsheight; y++) {
+		for (int x = 0; x < boundswidth; x++) {
+			(*labelsMat)(bounds).at<int>(y, x) = labels[levels - 1][x + boundswidth * y];
+		}
+	}
+
+	// clean up
+	labMat.release();
+
+	return clusterCount;
+}
+
+int DStutzSuperpixels::segmentSEEDSRev(const cv::Mat& mat, const cv::Rect& bounds, cv::Mat* labelsMat, int superpixels, float multiplier, bool merge)
+{
+	int number_of_bins = 5;
+	float minimum_confidence = 0.1f;
+	int neighborhood_size = 1;
+	float spatial_weight = 0.25f;
+	int iterations = 2;
+
+	int imageWidth = mat.cols;
+	int imageHeight = mat.rows;
+	int adjSuperpixels = (int)((float)superpixels * multiplier);
+
+	if (labelsMat->empty()) {
+		*labelsMat = cv::Mat(imageHeight, imageWidth, CV_32SC1, cv::Scalar(NONE));
+	}
+	else if (labelsMat->rows != imageHeight || labelsMat->cols != imageWidth || labelsMat->type() != CV_32SC1) {
+		labelsMat->release();
+		*labelsMat = cv::Mat(imageHeight, imageWidth, CV_32SC1, cv::Scalar(NONE));
+	}
+	else {
+		labelsMat->setTo(NONE);
+	}
+
+	cv::Mat labMat;
+	cv::cvtColor(mat(bounds), labMat, cv::COLOR_BGR2Lab);
+
+	int region_width = 2;
+	int region_height = 2;
+	int levels = 2;
+
+	computeHeightWidthLevelsFromSuperpixels(labMat, adjSuperpixels, region_height, region_width, levels);
+
+	SEEDSRevisedMeanPixels seedsrev(labMat, levels, region_width, region_height, number_of_bins, neighborhood_size, minimum_confidence, spatial_weight, SEEDSRevised::LAB);
+
+	seedsrev.initialize();
+	seedsrev.iterate(iterations);
+
+	int** labels = seedsrev.getLabels();
+	int clusterCount = countSuperpixels(labels, bounds.height, bounds.width);
+
+	// relabel
+	int boundswidth = labMat.cols;
+	int boundsheight = labMat.rows;
+	for (int y = 0; y < boundsheight; y++) {
+		for (int x = 0; x < boundswidth; x++) {
+			(*labelsMat)(bounds).at<int>(y, x) = labels[y][x];
+		}
+	}
+
+	// clean up
+	labMat.release();
+
+	return clusterCount;
+}
+
+int DStutzSuperpixels::segmentSLIC(const cv::Mat& mat, const cv::Rect& bounds, cv::Mat* labelsMat, int superpixels, float multiplier, bool merge)
+{
+	double compactness = 40.0;
+	int iterations = 10;
+	bool perturb_seeds = true;
+	int color_space = 1;
+
+	int imageWidth = mat.cols;
+	int imageHeight = mat.rows;
+	int adjSuperpixels = (int)((float)superpixels * multiplier);
+
+	if (labelsMat->empty()) {
+		*labelsMat = cv::Mat(imageHeight, imageWidth, CV_32SC1, cv::Scalar(NONE));
+	}
+	else if (labelsMat->rows != imageHeight || labelsMat->cols != imageWidth || labelsMat->type() != CV_32SC1) {
+		labelsMat->release();
+		*labelsMat = cv::Mat(imageHeight, imageWidth, CV_32SC1, cv::Scalar(NONE));
+	}
+	else {
+		labelsMat->setTo(NONE);
+	}
+
+	cv::Mat labMat;
+	cv::cvtColor(mat(bounds), labMat, cv::COLOR_BGR2Lab);
+
+	int region_size = computeRegionSizeFromSuperpixels(labMat, adjSuperpixels);
+
+	cv::Mat labels;
+	SLIC_OpenCV::computeSuperpixels(labMat, region_size, compactness,
+		iterations, perturb_seeds, color_space, labels);
+
+	relabelSuperpixels(labels);
+
+	// relabel
+	for (int i = 0; i < bounds.height; ++i) {
+		for (int j = 0; j < bounds.width; ++j) {
+			(*labelsMat)(bounds).at<int>(i, j) = labels.at<int>(i, j);
+		}
+	}
+
+	std::vector<int> labelsVec = utility::matToVec<int>(*labelsMat);
+	utility::distinct<int>(labelsVec);
+	int clusterCount = labelsVec.size();
+
+	// clean up
+	labMat.release();
+	labels.release();
+
+	return clusterCount;
+}
+
+
+	else if (type == 7) {
+		auto tstart = std::chrono::high_resolution_clock::now();
+
+		segments = scan3->segmentSEEDS(img_input, bounds, &img_labels, superpixels, multiplier, merge);
+
+		auto tend = std::chrono::high_resolution_clock::now();
+		*duration = (int)std::chrono::duration_cast<std::chrono::microseconds>(tend - tstart).count();
+	}
+	else if (type == 8) {
+		auto tstart = std::chrono::high_resolution_clock::now();
+
+		segments = scan3->segmentSEEDSRev(img_input, bounds, &img_labels, superpixels, multiplier, merge);
+
+		auto tend = std::chrono::high_resolution_clock::now();
+		*duration = (int)std::chrono::duration_cast<std::chrono::microseconds>(tend - tstart).count();
+	}
+	else if (type == 9) {
+		auto tstart = std::chrono::high_resolution_clock::now();
+
+		segments = scan3->segmentSLIC(img_input, bounds, &img_labels, superpixels, multiplier, merge);
+
+		auto tend = std::chrono::high_resolution_clock::now();
+		*duration = (int)std::chrono::duration_cast<std::chrono::microseconds>(tend - tstart).count();
+	}
+
+
+int numb(int *a)
+    {
+    for(int i=0;;i++)
+        if (a[i]==0&&a[i+1]==0)return i;
+       return 0;
+    }
+void mergin(int n, boost::container::vector<unsigned char, boost::container::allocator<unsigned char>> R, boost::container::vector<unsigned char, boost::container::allocator<unsigned char>> G, boost::container::vector<unsigned char, boost::container::allocator<unsigned char>>B,int Rows,
+        int Cols, boost::container::vector<unsigned short, boost::container::allocator<unsigned short>> label, boost::container::vector<double, boost::container::allocator<double>>labelsL, 
+    boost::container::vector<double, boost::container::allocator<double>>labelsa, boost::container::vector<double, boost::container::allocator<double>>labelsb, 
+    boost::container::vector<double, boost::container::allocator<double>>labelsx, boost::container::vector<double, boost::container::allocator<double>>labelsy)
+{
+    int k,bl,m;
+     int *ngt,*ngt1;//*lab,*ngt1;
+ int pixelnum=Rows*Cols;
+    ngt=new int [100];
+//     lab= new int [100];
+   ngt1=new int [100];
+   
+    for(int i=0;i<100;i++){ngt[i]=0;ngt1[i]=0;}//lab[i]=0;ngt1[i]=0;}
+    ngt[0]=n;
+    //lab[0]=n;
+    k=1;m=0;
+    for(int j=0;j<k;j++)
+    {
+        n=ngt[j];
+        bl=1;
+        if(label[n+1]==label[n]) 
+        { 
+            for(int i=0;bl==1;i++)
+            { 
+                if(ngt[i]==n+1) bl=0;
+                if(ngt[i]==0) {ngt[i]=n+1;k++;break;}
+            }
+        }
+        else
+        {
+            ngt1[m]=n+1;
+            m++;
+        }
+        
+        bl=1;
+        if(label[n-1]==label[n]) 
+        {
+            for(int i=0;bl==1;i++)
+            { 
+                if(ngt[i]==n-1) bl=0;
+                if(ngt[i]==0){ ngt[i]=n-1;k++;break;}
+            }
+           
+        }
+         else
+        {
+            ngt1[m]=n-1;
+            m++;
+        }
+        
+        bl=1;
+        if(label[n+Cols]==label[n]) 
+        {
+            for(int i=0;bl==1;i++)
+            { 
+                if(ngt[i]==n+Cols) bl=0;
+                if(ngt[i]==0){ ngt[k]=n+Cols;k++;break;}
+            }
+            
+        }
+         else
+        {
+            ngt1[m]=n+Cols;
+            m++;
+        }
+        
+        bl=1;
+        if(n >= Cols && label[n-Cols]==label[n]) 
+        {
+            for(int i=0;bl==1;i++)
+            {
+                if(ngt[i]==n-Cols) bl=0;
+                if(ngt[i]==0) {ngt[k]=n-Cols;k++;break;}
+            }
+        }
+         else
+        {
+            ngt1[m]=n-Cols;
+            m++;
+        }
+        if(k>30)break;
+        
+    }
+       if(k<30)
+       {
+           int t,lab;
+           double ll=0,aa=0,bb=0,x=0,y=0;
+           for(int i=0;i<k;i++)
+           {
+               t=ngt[i];
+               ll=ll+R[t];
+               aa=aa+G[t];
+               bb=bb+B[t];
+//                x=x+t/Cols;
+//                y=y+t%Cols;
+           }
+           ll=ll/k;
+           aa=aa/k;
+           bb=bb/k;
+//            x=x/k;
+//            y=y/k;
+           double dist,mx=10000;
+           int tlab = 0;
+           for(int i=0;i<m;i++)
+           {
+               t= ngt1[i];
+               if(t<pixelnum&&t>0)
+               {
+//                lab=label[t];
+               
+                dist=(ll-R[t])*(ll-R[t])+(aa-G[t])*+(aa-G[t])+(bb-B[t])*(bb-B[t]);
+//                  dist=dist+((labelsx[lab]-x)*(labelsx[lab]-x)+(labelsy[lab]-y)*(labelsy[lab]-y))*1;
+               if(dist<mx)
+               {
+                   mx=dist;
+                   tlab=t;
+               }
+               }
+           }
+           for(int i=0;i<k;i++)label[ngt[i]]=label[tlab];
+       }
+     delete [] ngt;
+   delete [] ngt1;
+}
+
+void DBscan(const cv::Mat& mat, int Rows,int Cols, std::vector<unsigned short> labelStd,double supnumber,int &realnumber,int post)
+{
+    int pixel = Rows * Cols;
+
+    std::vector<cv::Mat> rgbVec;
+    cv::split(mat, rgbVec);
+    std::vector<unsigned char> rStd = rgbVec[0].reshape(0, 1);
+    std::vector<unsigned char> gStd = rgbVec[1].reshape(0, 1);
+    std::vector<unsigned char> bStd = rgbVec[2].reshape(0, 1);
+    boost::container::vector<unsigned char, boost::container::allocator<unsigned char>> R(rStd.begin(), rStd.end());
+    boost::container::vector<unsigned char, boost::container::allocator<unsigned char>> G(gStd.begin(), gStd.end());
+    boost::container::vector<unsigned char, boost::container::allocator<unsigned char>> B(bStd.begin(), bStd.end());
+    rStd.clear();
+    gStd.clear();
+    bStd.clear();
+    rgbVec[0].release();
+    rgbVec[1].release();
+    rgbVec[2].release();
+
+    boost::container::vector<unsigned short, boost::container::allocator<unsigned short>> label(labelStd.begin(), labelStd.end());
+
+    supnumber=supnumber*1.1;
+    supnumber=  pixel/supnumber;
+    boost::container::vector<unsigned int, boost::container::allocator<unsigned int>> labnumb(pixel); //number pixels in superpixel
+    int Nc=0,nb;
+    boost::container::vector<bool, boost::container::allocator<bool>> label0(pixel);
+    for(int i=0;i<pixel;i++)label0[i]=0;
+    
+    boost::container::vector<boost::container::vector<int, boost::container::allocator<int>>, boost::container::allocator<boost::container::vector<int, boost::container::allocator<int>>>> ngbC(pixel); //record detail pixel in each superpixel 
+    boost::container::vector<int, boost::container::allocator<int>> neighbours(supnumber * 2, 0);
+    int numbngb;
+     
+     //////////***********clustering stage******************///////////// 
+    for(int i=0;i<pixel;i++)
+    {
+        if(!label[i])
+        {
+            Nc=Nc+1;        //Nc is the superpixel number
+            numbngb=0;
+            label[i]=Nc;
+            label0[i]=1;    //label0 is a sign, if label0[i]=1, pixel i have a label, Otherwise contrary
+            regionQuery(neighbours,numbngb, R, G, B,i,i, Rows, Cols, label, label0);// and find its neighbours
+            
+            int ind=0;
+            int num=1;
+            
+            while(ind<numbngb)//
+            {
+                nb = neighbours[ind];
+                label[nb] = Nc;   // mark it as visited.
+//                 ngbC[Nc][num]=nb;
+                num=num+1;
+                   // Find the neighbours of this neighbour and 
+                   // add them to the neighbours list
+                   if  (i<Cols&&num<(supnumber*1.33))
+                   {
+                       regionQuery(neighbours,numbngb,R, G, B,i,nb, Rows, Cols,label,label0);
+                   }
+                   else if(num<supnumber) 
+                   {
+                       regionQuery(neighbours,numbngb, R, G, B,i,nb, Rows, Cols,label,label0);
+                   }
+               ind = ind + 1;
+            }
+            
+            ngbC[Nc]= boost::container::vector<int, boost::container::allocator<int>>(num);
+            ngbC[Nc][0]=i;
+             for(int k=0;k<ind;k++)
+             {
+                 ngbC[Nc][k+1]=neighbours[k];
+                 neighbours[k]=0;
+             }
+            labnumb[Nc]=ind+1;
+        }
+    }
+     //////////////////////////merging stage/////////////////////////////////////
+     int dr0,dg0,db0,Nc1=Nc;
+     double R0,G0,B0,dr1,dg1,db1,x0,x1,y0,y1;
+     boost::container::vector<double, boost::container::allocator<double>> labelsR(Nc + 1),labelsG(Nc + 1),labelsB(Nc + 1),labelsx(Nc + 1),labelsy(Nc + 1);
+     int t;
+     double labels;
+     /////////////find initail superpixel central//////////////
+      for (int n=1;n<=Nc;n++)
+     {
+          labelsR[n]=0;
+          labelsG[n]=0;
+          labelsB[n]=0;
+          labelsx[n]=0;
+          labelsy[n]=0;
+           for(int j=0;j<labnumb[n];j++)
+             {
+               t=ngbC[n][j];
+               labelsR[n]=labelsR[n]+R[t];
+               labelsG[n]=labelsG[n]+G[t];
+               labelsB[n]=labelsB[n]+B[t];
+               labelsx[n]=labelsx[n]+t/Cols;
+               labelsy[n]=labelsy[n]+t%Cols;
+             }
+           labels=labnumb[n];
+           labelsR[n]=labelsR[n]/labels;
+           labelsG[n]=labelsG[n]/labels;
+           labelsB[n]=labelsB[n]/labels;
+           labelsx[n]=labelsx[n]/labels;
+           labelsy[n]=labelsy[n]/labels;
+      }
+    
+   
+      
+    int ngb[5],num_neighb;
+    for(int i=0;i<5;i++)ngb[i]=0;
+    
+    boost::container::vector<int, boost::container::allocator<int>> neighb(pixel);
+    for(int i=0;i< pixel;i++)neighb[i]=0;
+    
+     for (int n=1;n<=Nc;n++)
+     {
+        if (labnumb[n]<supnumber&&labnumb[n]>0)
+        {
+            
+            num_neighb=-1;
+            
+            for(int j=0;j<labnumb[n];j++)
+            {
+                 supiel_neighbs(label,neighb,ngb,ngbC[n][j],Rows,Cols,num_neighb);
+            }
+             
+           double minlab=100000,dista;
+           int minnum=0,mn;
+                    
+            R0=labelsR[n];
+            G0=labelsG[n];
+            B0=labelsB[n];
+            x0= labelsx[n];
+            y0= labelsy[n];
+            for (int m=0;m<num_neighb+1;m++)
+            {  
+                mn=neighb[m];
+               
+                dr1= labelsR[mn];
+                dg1= labelsG[mn];
+                db1= labelsB[mn];
+                x1= labelsx[mn];
+                y1= labelsy[mn];
+                
+                double dist =(dr1-R0)*(dr1-R0)+(dg1-G0)*(dg1-G0)+(db1-B0)*(db1-B0);
+                dista=(x0-x1)*(x0-x1)+(y0-y1)*(y0-y1);
+                dist=dist+dista*2;
+                 if (dist<minlab)
+                 {
+                     minlab=dist;
+                     minnum=mn;
+                 }
+             }
+           
+            if (minnum!=0)
+            {
+                for(int j=0;j<labnumb[minnum];j++)
+                {
+                    neighb[j]=ngbC[minnum][j];
+                }
+                ngbC[minnum].clear();
+                ngbC[minnum].resize(labnumb[minnum]+labnumb[n]);
+                
+                for(int j=0;j<labnumb[minnum];j++)
+                {
+                    ngbC[minnum][j]=neighb[j];
+                    neighb[j]=0;
+                }
+                for(int j=0;j<labnumb[n];j++)
+                {
+                    label[ngbC[n][j]]=minnum;
+                    ngbC[minnum][labnumb[minnum]+j]=ngbC[n][j];
+                 }
+                
+                labelsR[minnum]=(labelsR[minnum]*labnumb[minnum]+labelsR[n]*labnumb[n])/(labnumb[minnum]+labnumb[n]);
+                labelsG[minnum]=(labelsG[minnum]*labnumb[minnum]+labelsG[n]*labnumb[n])/(labnumb[minnum]+labnumb[n]);
+                labelsB[minnum]=(labelsB[minnum]*labnumb[minnum]+labelsB[n]*labnumb[n])/(labnumb[minnum]+labnumb[n]);
+                labelsx[minnum]=(labelsx[minnum]*labnumb[minnum]+labelsx[n]*labnumb[n])/(labnumb[minnum]+labnumb[n]);
+                labelsy[minnum]=(labelsy[minnum]*labnumb[minnum]+labelsy[n]*labnumb[n])/(labnumb[minnum]+labnumb[n]);
+                        
+                labnumb[minnum]=labnumb[minnum]+labnumb[n];
+                labnumb[n]=0;
+            }
+                Nc1=Nc1-1;
+         }
+      }
+    realnumber=Nc1;
+    //--------------post processing-----------------//
+    if(post==1)
+    {
+     int lr,ll,lu,ld,l,n;
+     for(int i=1;i<Rows-1;i++)
+         for(int j=1;j<Cols-1;j++)
+         {
+             n=i*Cols+j;
+             if(n>(Rows*Cols)/8)
+             {
+                 int yui=0;
+             }
+             if(n>(Rows*Cols)/6)
+             {
+                 int yui=0;
+             }
+             if(n>(Rows*Cols)/5)
+             {
+                 int yui=0;
+             }
+             if(n>(Rows*Cols)/5+1500)
+             {
+                 int yui=0;
+             }
+              if(n>(Rows*Cols)/5+2500)
+             {
+                 int yui=0;
+             }
+             if(n>(Rows*Cols)/4)
+             {
+                 int yui=0;
+             }
+             if(n>(Rows*Cols)/3+5000)
+             {
+                 int yui=0;
+             }
+              if(n>(Rows*Cols)/3+10000)
+             {
+                 int yui=0;
+             }
+             if(n>(Rows*Cols)/3+15000)
+             {
+                 int yui=0;
+             }
+              if(n>(Rows*Cols)/3+20000)
+             {
+                 int yui=0;
+             }
+             if(n>(Rows*Cols)/2)
+             {
+                 int yui=0;
+             }
+             l=label[n];
+             lr=label[n+1];
+             ll=label[n-1];
+             lu=label[n-Cols];
+             ld=label[n+Cols];
+             
+             if(lr!=l&&ll!=l)
+             {
+                 if(labnumb[lr]>=labnumb[ll])
+                 {
+                     label[n]=ll;
+                     mergin(n+Cols,R,G,B,Rows,Cols,label,labelsR,labelsG,labelsB,labelsx,labelsy);
+                     mergin(n-Cols,R,G,B,Rows,Cols,label,labelsR,labelsG,labelsB,labelsx,labelsy);
+                 }
+                 else
+                 {
+                     label[n]=lr;
+                     mergin(n+Cols,R,G,B,Rows,Cols,label,labelsR,labelsG,labelsB,labelsx,labelsy);
+                     mergin(n-Cols,R,G,B,Rows,Cols,label,labelsR,labelsG,labelsB,labelsx,labelsy);
+                 }
+             }
+             if(lu!=l&&ld!=l)
+             {
+                 if(labnumb[lu]>=labnumb[ld])
+                 {
+                     label[n]=ld;
+                     mergin(n+1,R,G,B,Rows,Cols,label,labelsR,labelsG,labelsB,labelsx,labelsy);
+                     mergin(n-1,R,G,B,Rows,Cols,label,labelsR,labelsG,labelsB,labelsx,labelsy);
+                 }
+                 else 
+                 {
+                     label[n]=lu;
+                     mergin(n+1,R,G,B,Rows,Cols,label,labelsR,labelsG,labelsB,labelsx,labelsy);
+                     mergin(n-1,R,G,B,Rows,Cols,label,labelsR,labelsG,labelsB,labelsx,labelsy);
+                 }
+             }
+     }
+    }
+     labnumb.clear();
+     label0.clear();
+     for(int i=1;i<Nc;i++)
+         ngbC[i].clear();
+     ngbC.clear();
+     labelsR.clear();
+     labelsG.clear();
+     labelsB.clear();
+     labelsx.clear();
+     labelsy.clear();
+
+     R.clear();
+     G.clear();
+     B.clear();
+     }
+
+
+
+	// th 200000, count 2
+	// th 150000, count 58
+	// th 100000, count 74
+	// th 50000, count 134
+	// th 5000, count 662
+	// th 500, count 1334
+	// th 300, count 1778
+	// th 100, count 3535
+	// th 50, count 5466
+	// th 20, count 10466
+	// th 10, count 13569
+
+
+int ScanSegment::segment(const cv::Mat& mat, const cv::Rect& bounds, cv::Mat* labelsMat, int superpixels, float multiplier, bool merge)
+{
+	int imageWidth = mat.cols;
+	int imageHeight = mat.rows;
+	indexSize = bounds.height * bounds.width;
+	int adjSuperpixels = (int)((float)superpixels * multiplier);
+	clusterSize = (int)(1.1f * (float)(bounds.width * bounds.height) / (float)adjSuperpixels);
+
+	// create buffers and initialise
+	int* labelsBuffer = static_cast<int*>(malloc(indexSize * sizeof(int)));
+	int* clusterBuffer = static_cast<int*>(malloc(indexSize * sizeof(int)));
+	cv::Vec3b* labBuffer = static_cast<cv::Vec3b*>(malloc(indexSize * sizeof(cv::Vec3b)));
+	int neighbourLocBuffer[neighbourCount];
+	std::vector<int*> offsetVec(neighbourCount);
+	int offsetSize = (clusterSize + 1) * sizeof(int);
+	bool offsetAllocated = true;
+	for (int i = 0; i < neighbourCount; i++) {
+		offsetVec[i] = static_cast<int*>(malloc(offsetSize));
+		if (offsetVec[i] == NULL) {
+			offsetAllocated = false;
+		}
+
+		neighbourLocBuffer[i] = (neighbourLoc[i].y * bounds.width) + neighbourLoc[i].x;
+	}
+	std::atomic<int> clusterIndex, locationIndex, clusterID;
+	clusterIndex.store(0);
+	locationIndex.store(0);
+	clusterID.store(1);
+
+	int clusterCount = 0;
+	if (labelsBuffer != NULL && clusterBuffer != NULL && labBuffer != NULL && offsetAllocated) {
+		smallClusters = indexSize / smallClustersDiv;
+
+		// set labels to unclassified
+		if (labelsMat->empty()) {
+			*labelsMat = cv::Mat(imageHeight, imageWidth, CV_32SC1, cv::Scalar(NONE));
+		}
+		else if (labelsMat->rows != imageHeight || labelsMat->cols != imageWidth || labelsMat->type() != CV_32SC1) {
+			labelsMat->release();
+			*labelsMat = cv::Mat(imageHeight, imageWidth, CV_32SC1, cv::Scalar(NONE));
+		}
+		else {
+			labelsMat->setTo(NONE);
+		}
+
+		// set labels to unclassified
+		std::fill(labelsBuffer, labelsBuffer + indexSize, UNCLASSIFIED);
+
+		// 1) divide bounds area into uniformly distributed rectangular segments
+		int shortCount = (int)floorf(sqrtf((float)concurrentthreads));
+		int longCount = concurrentthreads / shortCount;
+		int horzDiv = bounds.width > bounds.height ? longCount : shortCount;
+		int vertDiv = bounds.width > bounds.height ? shortCount : longCount;
+		float horzLength = (float)bounds.width / (float)horzDiv;
+		float vertLength = (float)bounds.height / (float)vertDiv;
+
+		// 2) get array of seed rects
+		std::vector<cv::Rect> seedRects(horzDiv * vertDiv);
+		for (int y = 0; y < vertDiv; y++) {
+			for (int x = 0; x < horzDiv; x++) {
+				int xStart = bounds.x + (int)((float)x * horzLength);
+				int yStart = bounds.y + (int)((float)y * vertLength);
+				seedRects[(y * horzDiv) + x] = cv::Rect(xStart, yStart, (int)(x == horzDiv - 1 ? bounds.x + bounds.width - xStart : horzLength), (int)(y == vertDiv - 1 ? bounds.y + bounds.height - yStart : vertLength));
+			}
+		}
+
+		// get initial rect and umat
+		cv::Rect windowB(1, 1, bounds.width, bounds.height);
+
+		// 3) initialise normalised lab values and multiplier
+		cv::Mat labMat;
+		cv::cvtColor(mat(bounds), labMat, cv::COLOR_BGR2Lab);
+		cv::medianBlur(labMat, labMat, 3);
+
+		// 4) get adjusted tolerance = (100 / average length (horz/vert)) x sqrt(3) [ie. euclidean lab colour distance sqrt(l2 + a2 + b2)] x tolerance100
+		float adjTolerance = (200.0f / (imageWidth + imageHeight)) * sqrtf(3) * tolerance100;
+		adjTolerance = adjTolerance * adjTolerance;
+
+		// create neighbour vector
+		std::vector<int> indexNeighbourVec(neighbourCount);
+		std::iota(indexNeighbourVec.begin(), indexNeighbourVec.end(), 0);
+
+		// create process vector
+		std::vector<std::pair<int, int>> indexProcessVec(neighbourCount);
+		int processDiv = indexSize / neighbourCount;
+		int processCurrent = 0;
+		for (int i = 0; i < neighbourCount - 1; i++) {
+			indexProcessVec[i] = std::make_pair(processCurrent, processCurrent + processDiv);
+			processCurrent += processDiv;
+		}
+		indexProcessVec[neighbourCount - 1] = std::make_pair(processCurrent, indexSize);
+
+		// copy mat to buffer
+		memcpy(labBuffer, labMat.data, indexSize * sizeof(cv::Vec3b));
+
+		// start at the center of the rect, then run through the remainder
+		std::for_each(std::execution::par_unseq, indexNeighbourVec.begin(), indexNeighbourVec.end(), [&](int& v) {
+			cv::Rect seedRect = seedRects[v];
+			cv::Size boundsSize = bounds.size();
+			for (int y = seedRect.y; y < seedRect.y + seedRect.height; y++) {
+				for (int x = seedRect.x; x < seedRect.x + seedRect.width; x++) {
+					expandCluster(labBuffer, labelsBuffer, neighbourLocBuffer, clusterBuffer, offsetVec[v], boundsSize, cv::Point(x, y), (int)adjTolerance, &clusterIndex, &locationIndex, &clusterID);
+				}
+			}
+		});
+
+		cv::Mat labels(bounds.height, bounds.width, CV_32SC1);
+		if (merge) {
+			// get cutoff size for clusters
+			std::vector<std::pair<int, int>> countVec;
+			int clusterIndexSize = clusterIndex.load();
+			countVec.reserve(clusterIndexSize / 2);
+			for (int i = 1; i < clusterIndexSize; i += 2) {
+				int count = clusterBuffer[i];
+				if (count >= smallClusters) {
+					int clusterID = clusterBuffer[i - 1];
+					countVec.push_back(std::make_pair(clusterID, count));
+				}
+			}
+
+			// sort descending
+			std::sort(std::execution::par_unseq, countVec.begin(), countVec.end(), [](auto& left, auto& right) {
+				return left.second > right.second;
+			});
+
+			int cutoff = MAX(smallClusters, countVec[MIN(countVec.size() - 1, adjSuperpixels - 1)].second);
+			clusterCount = (int)std::count_if(countVec.begin(), countVec.end(), [&cutoff](std::pair<int, int> p) {return p.second > cutoff; });
+
+			// change labels to 1 -> clusterCount, 0 = UNKNOWN, reuse clusterbuffer
+			std::fill_n(clusterBuffer, indexSize, UNKNOWN);
+			int countLimit = cutoff == -1 ? countVec.size() : clusterCount;
+			for (int i = 0; i < countLimit; i++) {
+				clusterBuffer[countVec[i].first] = i + 1;
+			}
+
+			std::for_each(std::execution::par_unseq, indexProcessVec.begin(), indexProcessVec.end(), [&labelsBuffer, &clusterBuffer](std::pair<int, int>& p) {
+				for (int i = p.first; i < p.second; i++) {
+					labelsBuffer[i] = clusterBuffer[labelsBuffer[i]];
+				}
+			});
+
+			// copy in labels to mats
+			memcpy(labels.data, labelsBuffer, indexSize * sizeof(int));
+			cv::Mat pixelMat(bounds.height, bounds.width, CV_8UC1);
+			cv::compare(labels, UNKNOWN, pixelMat, cv::CMP_EQ);
+
+			// run watershed
+			cv::Mat labelsWS = labels.clone();
+			cv::watershed(labMat, labelsWS);
+
+			// use median blur to selectively remove borders
+			cv::Mat borders, pixelInvert;
+			cv::compare(labelsWS, BORDER, borders, cv::CMP_EQ);
+			cv::bitwise_not(pixelMat, pixelInvert);
+			borders.setTo(0, pixelInvert);
+			labelsWS.copyTo(labels, pixelMat);
+			labelsWS.convertTo(labelsWS, CV_32F);
+			cv::medianBlur(labelsWS, labelsWS, 3);
+			labelsWS.convertTo(labelsWS, CV_32S);
+			labelsWS.copyTo(labels, borders);
+
+			// remove remaining border points
+			cv::Rect innerBounds(1, 1, bounds.width - 2, bounds.height - 2);
+			cv::compare(labels, BORDER, borders, cv::CMP_EQ);
+			std::vector<cv::Point> locatePoints;
+			std::vector<int> neighbourLabels;
+			neighbourLabels.reserve(neighbourCount);
+			int borderCount = cv::countNonZero(borders);
+			if (borderCount > 0) {
+				cv::findNonZero(borders, locatePoints);
+				do {
+					for (int i = (int)locatePoints.size() - 1; i >= 0; --i) {
+						neighbourLabels.clear();
+
+						if (innerBounds.contains(locatePoints[i])) {
+							// no need to screen adjacent points
+							for (int j = 0; j < neighbourCount; j++) {
+								cv::Point neighbourPoint(locatePoints[i].x + neighbourLoc[j].x, locatePoints[i].y + neighbourLoc[j].y);
+								int neighbourLabel = labels.at<int>(neighbourPoint.y, neighbourPoint.x);
+								if (neighbourLabel > 0) {
+									neighbourLabels.push_back(neighbourLabel);
+								}
+							}
+						}
+						else {
+							// need to screen point for boundary
+							for (int j = 0; j < neighbourCount; j++) {
+								cv::Point neighbourPoint(locatePoints[i].x + neighbourLoc[j].x, locatePoints[i].y + neighbourLoc[j].y);
+								if (bounds.contains(neighbourPoint)) {
+									int neighbourLabel = labels.at<int>(neighbourPoint.y, neighbourPoint.x);
+									if (neighbourLabel > 0) {
+										neighbourLabels.push_back(neighbourLabel);
+									}
+								}
+							}
+						}
+
+						// replace label with median if enough valid neighbours
+						if (neighbourLabels.size() > 0) {
+							std::sort(neighbourLabels.begin(), neighbourLabels.end());
+							labels.at<int>(locatePoints[i].y, locatePoints[i].x) = neighbourLabels[(neighbourLabels.size() - 1) / 2];
+							locatePoints.erase(locatePoints.begin() + i);
+						}
+					}
+				} while (locatePoints.size() > 0);
+			}
+
+			// change labels to 0 -> superpixels - 1
+			cv::subtract(labels, 1, labels);
+
+			pixelInvert.release();
+			borders.release();
+			labelsWS.release();
+			pixelMat.release();
+		}
+		else {
+			memcpy(labels.data, labelsBuffer, indexSize * sizeof(int));
+		}
+		labels.copyTo((*labelsMat)(bounds));
+		labels.release();
+		labMat.release();
+	}
+	else {
+		// clear labels
+		labelsMat->release();
+		*labelsMat = cv::Mat();
+	}
+
+	// clean up
+	if (labelsBuffer != NULL) {
+		free(labelsBuffer);
+	}
+	if (clusterBuffer != NULL) {
+		free(clusterBuffer);
+	}
+	if (labBuffer != NULL) {
+		free(labBuffer);
+	}
+	for (int i = 0; i < neighbourCount; i++) {
+		if (offsetVec[i] != NULL) {
+			free(offsetVec[i]);
+		}
+	}
+
+	return clusterCount;
+}
+
+int ScanSegment::segmentWS(const cv::Mat& mat, const cv::Rect& bounds, cv::Mat* labelsMat, int superpixels, float multiplier, bool merge)
+{
+	int imageWidth = mat.cols;
+	int imageHeight = mat.rows;
+	indexSize = bounds.height * bounds.width;
+	int adjSuperpixels = (int)((float)superpixels * multiplier);
+	clusterSize = (int)(1.1f * (float)(bounds.width * bounds.height) / (float)adjSuperpixels);
+
+	// create buffers and initialise
+	int* labelsBuffer = static_cast<int*>(malloc(indexSize * sizeof(int)));
+	int* clusterBuffer = static_cast<int*>(malloc(indexSize * sizeof(int)));
+	cv::Vec3b* labBuffer = static_cast<cv::Vec3b*>(malloc(indexSize * sizeof(cv::Vec3b)));
+	int neighbourLocBuffer[neighbourCount];
+	std::vector<int*> offsetVec(neighbourCount);
+	int offsetSize = (clusterSize + 1) * sizeof(int);
+	bool offsetAllocated = true;
+	for (int i = 0; i < neighbourCount; i++) {
+		offsetVec[i] = static_cast<int*>(malloc(offsetSize));
+		if (offsetVec[i] == NULL) {
+			offsetAllocated = false;
+		}
+
+		neighbourLocBuffer[i] = (neighbourLoc[i].y * bounds.width) + neighbourLoc[i].x;
+	}
+	std::atomic<int> clusterIndex, locationIndex, clusterID;
+	clusterIndex.store(0);
+	locationIndex.store(0);
+	clusterID.store(1);
+
+	int clusterCount = 0;
+	if (labelsBuffer != NULL && clusterBuffer != NULL && labBuffer != NULL && offsetAllocated) {
+		smallClusters = indexSize / smallClustersDiv;
+
+		// set labels to unclassified
+		if (labelsMat->empty()) {
+			*labelsMat = cv::Mat(imageHeight, imageWidth, CV_32SC1, cv::Scalar(NONE));
+		}
+		else if (labelsMat->rows != imageHeight || labelsMat->cols != imageWidth || labelsMat->type() != CV_32SC1) {
+			labelsMat->release();
+			*labelsMat = cv::Mat(imageHeight, imageWidth, CV_32SC1, cv::Scalar(NONE));
+		}
+		else {
+			labelsMat->setTo(NONE);
+		}
+
+		// set labels to unclassified
+		std::fill(labelsBuffer, labelsBuffer + indexSize, UNCLASSIFIED);
+
+		// 1) divide bounds area into uniformly distributed rectangular segments
+		int shortCount = (int)floorf(sqrtf((float)concurrentthreads));
+		int longCount = concurrentthreads / shortCount;
+		int horzDiv = bounds.width > bounds.height ? longCount : shortCount;
+		int vertDiv = bounds.width > bounds.height ? shortCount : longCount;
+		float horzLength = (float)bounds.width / (float)horzDiv;
+		float vertLength = (float)bounds.height / (float)vertDiv;
+
+		// 2) get array of seed rects
+		std::vector<cv::Rect> seedRects(horzDiv * vertDiv);
+		for (int y = 0; y < vertDiv; y++) {
+			for (int x = 0; x < horzDiv; x++) {
+				int xStart = bounds.x + (int)((float)x * horzLength);
+				int yStart = bounds.y + (int)((float)y * vertLength);
+				seedRects[(y * horzDiv) + x] = cv::Rect(xStart, yStart, (int)(x == horzDiv - 1 ? bounds.x + bounds.width - xStart : horzLength), (int)(y == vertDiv - 1 ? bounds.y + bounds.height - yStart : vertLength));
+			}
+		}
+
+		// get initial rect and umat
+		cv::Rect windowB(1, 1, bounds.width, bounds.height);
+
+		// 3) initialise normalised lab values and multiplier
+		cv::Mat labMat;
+		cv::cvtColor(mat(bounds), labMat, cv::COLOR_BGR2Lab);
+		cv::medianBlur(labMat, labMat, 3);
+
+		// 4) get adjusted tolerance = (100 / average length (horz/vert)) x sqrt(3) [ie. euclidean lab colour distance sqrt(l2 + a2 + b2)] x tolerance100
+		float adjTolerance = (200.0f / (imageWidth + imageHeight)) * sqrtf(3) * 9.0f;// tolerance100;
+		adjTolerance = adjTolerance * adjTolerance;
+
+		// create neighbour vector
+		std::vector<int> indexNeighbourVec(neighbourCount);
+		std::iota(indexNeighbourVec.begin(), indexNeighbourVec.end(), 0);
+
+		// create process vector
+		std::vector<std::pair<int, int>> indexProcessVec(neighbourCount);
+		int processDiv = indexSize / neighbourCount;
+		int processCurrent = 0;
+		for (int i = 0; i < neighbourCount - 1; i++) {
+			indexProcessVec[i] = std::make_pair(processCurrent, processCurrent + processDiv);
+			processCurrent += processDiv;
+		}
+		indexProcessVec[neighbourCount - 1] = std::make_pair(processCurrent, indexSize);
+
+		// copy mat to buffer
+		memcpy(labBuffer, labMat.data, indexSize * sizeof(cv::Vec3b));
+
+		// start at the center of the rect, then run through the remainder
+		std::for_each(std::execution::par_unseq, indexNeighbourVec.begin(), indexNeighbourVec.end(), [&](int& v) {
+			cv::Rect seedRect = seedRects[v];
+			cv::Size boundsSize = bounds.size();
+			for (int y = seedRect.y; y < seedRect.y + seedRect.height; y++) {
+				for (int x = seedRect.x; x < seedRect.x + seedRect.width; x++) {
+					expandCluster(labBuffer, labelsBuffer, neighbourLocBuffer, clusterBuffer, offsetVec[v], boundsSize, cv::Point(x, y), (int)adjTolerance, &clusterIndex, &locationIndex, &clusterID);
+				}
+			}
+		});
+
+		cv::Mat labels(bounds.height, bounds.width, CV_32SC1);
+		if (merge) {
+			// get cutoff size for clusters
+			std::vector<std::pair<int, int>> countVec;
+			int clusterIndexSize = clusterIndex.load();
+			countVec.reserve(clusterIndexSize / 2);
+			for (int i = 1; i < clusterIndexSize; i += 2) {
+				int count = clusterBuffer[i];
+				if (count >= smallClusters) {
+					int clusterID = clusterBuffer[i - 1];
+					countVec.push_back(std::make_pair(clusterID, count));
+				}
+			}
+
+			// sort descending
+			std::sort(std::execution::par_unseq, countVec.begin(), countVec.end(), [](auto& left, auto& right) {
+				return left.second > right.second;
+			});
+
+			int cutoff = MAX(smallClusters, countVec[MIN(countVec.size() - 1, adjSuperpixels - 1)].second);
+			clusterCount = (int)std::count_if(countVec.begin(), countVec.end(), [&cutoff](std::pair<int, int> p) {return p.second > cutoff; });
+
+			// change labels to 1 -> clusterCount, 0 = UNKNOWN, reuse clusterbuffer
+			std::fill_n(clusterBuffer, indexSize, UNKNOWN);
+			int countLimit = cutoff == -1 ? countVec.size() : clusterCount;
+			for (int i = 0; i < countLimit; i++) {
+				clusterBuffer[countVec[i].first] = i + 1;
+			}
+
+			std::for_each(std::execution::par_unseq, indexProcessVec.begin(), indexProcessVec.end(), [&labelsBuffer, &clusterBuffer](std::pair<int, int>& p) {
+				for (int i = p.first; i < p.second; i++) {
+					labelsBuffer[i] = clusterBuffer[labelsBuffer[i]];
+				}
+			});
+
+			// copy in labels to mats
+			memcpy(labels.data, labelsBuffer, indexSize * sizeof(int));
+			cv::Mat pixelMat(bounds.height, bounds.width, CV_8UC1);
+			cv::compare(labels, UNKNOWN, pixelMat, cv::CMP_EQ);
+
+			// run watershed
+			cv::Mat labelsWS = labels.clone();
+			watershedEx(labMat, labelsWS);
+			labelsWS.copyTo(labels, pixelMat);
+
+			// change labels to 0 -> superpixels - 1
+			cv::subtract(labels, 1, labels);
+
+			labelsWS.release();
+			pixelMat.release();
+		}
+		else {
+			memcpy(labels.data, labelsBuffer, indexSize * sizeof(int));
+		}
+		labels.copyTo((*labelsMat)(bounds));
+		labels.release();
+		labMat.release();
+	}
+	else {
+		// clear labels
+		labelsMat->release();
+		*labelsMat = cv::Mat();
+	}
+
+	// clean up
+	if (labelsBuffer != NULL) {
+		free(labelsBuffer);
+	}
+	if (clusterBuffer != NULL) {
+		free(clusterBuffer);
+	}
+	if (labBuffer != NULL) {
+		free(labBuffer);
+	}
+	for (int i = 0; i < neighbourCount; i++) {
+		if (offsetVec[i] != NULL) {
+			free(offsetVec[i]);
+		}
+	}
+
+	return clusterCount;
+}
+
+	int segmentWS(const cv::Mat& mat, const cv::Rect& bounds, cv::Mat* labelsMat, int superpixels, float multiplier, bool merge);
+
+		else if (type == 1) {
+		auto tstart = std::chrono::high_resolution_clock::now();
+
+		segments = scan0->segmentWS(img_input, bounds, &img_labels, superpixels, multiplier, merge);
+
+		auto tend = std::chrono::high_resolution_clock::now();
+		*duration = (int)std::chrono::duration_cast<std::chrono::microseconds>(tend - tstart).count();
+	}

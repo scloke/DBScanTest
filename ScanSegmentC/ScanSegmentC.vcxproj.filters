@@ -1,0 +1,270 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Header Files\lib_fh">
+      <UniqueIdentifier>{fd17a6ef-b8a2-4b46-be5b-0699a6dd89bb}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\lib_ers">
+      <UniqueIdentifier>{281c7fd9-eeb2-4d79-8c3f-d75acbf98a0f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\lib_ers">
+      <UniqueIdentifier>{4f100c80-cd76-4e0c-839b-f0fc76bdcdbe}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\lib_crs">
+      <UniqueIdentifier>{6c9cb53b-a9f9-4759-9216-57ca9ae89979}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\lib_etps">
+      <UniqueIdentifier>{13818fb5-0c5c-431b-9a38-722b19eb8f89}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\lib_etps">
+      <UniqueIdentifier>{574aae54-e99f-4fd3-8b2e-94f2dad2678a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\lib_eval">
+      <UniqueIdentifier>{194d64e5-ae65-452f-b31e-5641fb808cd3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\FastSuperpixel">
+      <UniqueIdentifier>{edb6989a-0770-42a5-966c-87a2418ce640}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="framework.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="pch.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ScanSegmentC.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Global.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Utility.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_etps\etps_opencv.h">
+      <Filter>Header Files\lib_etps</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_etps\functions.h">
+      <Filter>Header Files\lib_etps</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_etps\segengine.h">
+      <Filter>Header Files\lib_etps</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_etps\stdafx.h">
+      <Filter>Header Files\lib_etps</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_etps\utils.h">
+      <Filter>Header Files\lib_etps</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_etps\structures.h">
+      <Filter>Header Files\lib_etps</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_etps\tsdeque.h">
+      <Filter>Header Files\lib_etps</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_fh\fh_opencv.h">
+      <Filter>Header Files\lib_fh</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_fh\image.h">
+      <Filter>Header Files\lib_fh</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_fh\misc.h">
+      <Filter>Header Files\lib_fh</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_fh\segment-image-labels.h">
+      <Filter>Header Files\lib_fh</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_fh\filter.h">
+      <Filter>Header Files\lib_fh</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_fh\segment-graph.h">
+      <Filter>Header Files\lib_fh</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_fh\segment-image.h">
+      <Filter>Header Files\lib_fh</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_fh\convolve.h">
+      <Filter>Header Files\lib_fh</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_fh\imconv.h">
+      <Filter>Header Files\lib_fh</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_fh\imutil.h">
+      <Filter>Header Files\lib_fh</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_fh\disjoint-set.h">
+      <Filter>Header Files\lib_fh</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_crs\AGaussianFeature.h">
+      <Filter>Header Files\lib_crs</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_crs\ColorFeature.h">
+      <Filter>Header Files\lib_crs</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_crs\CompactnessFeature.h">
+      <Filter>Header Files\lib_crs</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_crs\ContourRelaxation.h">
+      <Filter>Header Files\lib_crs</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_crs\crs_opencv.h">
+      <Filter>Header Files\lib_crs</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_crs\DepthFeature.h">
+      <Filter>Header Files\lib_crs</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_crs\FeatureType.h">
+      <Filter>Header Files\lib_crs</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_crs\globalConstants.h">
+      <Filter>Header Files\lib_crs</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_crs\GrayvalueFeature.h">
+      <Filter>Header Files\lib_crs</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_crs\IFeature.h">
+      <Filter>Header Files\lib_crs</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_crs\InitializationFunctions.h">
+      <Filter>Header Files\lib_crs</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_crs\LabelStatisticsGauss.h">
+      <Filter>Header Files\lib_crs</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_crs\TraversionGenerator.h">
+      <Filter>Header Files\lib_crs</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_crs\VisualizationHelper.h">
+      <Filter>Header Files\lib_crs</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_ers\Edge.h">
+      <Filter>Header Files\lib_ers</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_ers\ers_opencv.h">
+      <Filter>Header Files\lib_ers</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_ers\Image.h">
+      <Filter>Header Files\lib_ers</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_ers\ImageIO.h">
+      <Filter>Header Files\lib_ers</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_ers\MERCClustering.h">
+      <Filter>Header Files\lib_ers</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_ers\MERCDisjointSet.h">
+      <Filter>Header Files\lib_ers</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_ers\MERCEdge.h">
+      <Filter>Header Files\lib_ers</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_ers\MERCFunctions.h">
+      <Filter>Header Files\lib_ers</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_ers\MERCInput.h">
+      <Filter>Header Files\lib_ers</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_ers\MERCInputImage.h">
+      <Filter>Header Files\lib_ers</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_ers\MERCLazyGreedy.h">
+      <Filter>Header Files\lib_ers</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_ers\MERCOutput.h">
+      <Filter>Header Files\lib_ers</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_ers\MERCOutputImage.h">
+      <Filter>Header Files\lib_ers</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_ers\MHeap.h">
+      <Filter>Header Files\lib_ers</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_ers\MList.h">
+      <Filter>Header Files\lib_ers</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_ers\MMFunctions.h">
+      <Filter>Header Files\lib_ers</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_ers\MSubmodularHeap.h">
+      <Filter>Header Files\lib_ers</Filter>
+    </ClInclude>
+    <ClInclude Include="lib_eval\connected_components.h">
+      <Filter>Header Files\lib_eval</Filter>
+    </ClInclude>
+    <ClInclude Include="FastSuperpixel\DBscan.h">
+      <Filter>Header Files\FastSuperpixel</Filter>
+    </ClInclude>
+    <ClInclude Include="FastSuperpixel\pixelQuery.h">
+      <Filter>Header Files\FastSuperpixel</Filter>
+    </ClInclude>
+    <ClInclude Include="FastSuperpixel\regionQuery.h">
+      <Filter>Header Files\FastSuperpixel</Filter>
+    </ClInclude>
+    <ClInclude Include="FastSuperpixel\supiel_neighbs.h">
+      <Filter>Header Files\FastSuperpixel</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="dllmain.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="pch.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ScanSegmentC.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Utility.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="lib_etps\etps_opencv.cpp">
+      <Filter>Source Files\lib_etps</Filter>
+    </ClCompile>
+    <ClCompile Include="lib_etps\functions.cpp">
+      <Filter>Source Files\lib_etps</Filter>
+    </ClCompile>
+    <ClCompile Include="lib_etps\segengine.cpp">
+      <Filter>Source Files\lib_etps</Filter>
+    </ClCompile>
+    <ClCompile Include="lib_etps\stdafx.cpp">
+      <Filter>Source Files\lib_etps</Filter>
+    </ClCompile>
+    <ClCompile Include="lib_etps\utils.cpp">
+      <Filter>Source Files\lib_etps</Filter>
+    </ClCompile>
+    <ClCompile Include="lib_etps\structures.cpp">
+      <Filter>Source Files\lib_etps</Filter>
+    </ClCompile>
+    <ClCompile Include="lib_ers\ers_opencv.cpp">
+      <Filter>Source Files\lib_ers</Filter>
+    </ClCompile>
+    <ClCompile Include="lib_ers\MERCCInput.cpp">
+      <Filter>Source Files\lib_ers</Filter>
+    </ClCompile>
+    <ClCompile Include="lib_ers\MERCDisjointSet.cpp">
+      <Filter>Source Files\lib_ers</Filter>
+    </ClCompile>
+    <ClCompile Include="lib_ers\MERCFunctions.cpp">
+      <Filter>Source Files\lib_ers</Filter>
+    </ClCompile>
+    <ClCompile Include="lib_ers\MERCLazyGreedy.cpp">
+      <Filter>Source Files\lib_ers</Filter>
+    </ClCompile>
+    <ClCompile Include="lib_ers\MERCOutput.cpp">
+      <Filter>Source Files\lib_ers</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>

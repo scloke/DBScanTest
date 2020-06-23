@@ -1,0 +1,400 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>16.0</VCProjectVersion>
+    <ProjectGuid>{C97BA608-40A1-46AE-B453-88ECC7BAC958}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>ScanSegmentC</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <LinkIncremental>false</LinkIncremental>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <LinkIncremental>true</LinkIncremental>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <LinkIncremental>true</LinkIncremental>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <LinkIncremental>false</LinkIncremental>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_USE_MATH_DEFINES;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;NDEBUG;SCANSEGMENTC_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>$(OPENCV_DIR)\include;$(Boost_INCLUDE_DIR)</AdditionalIncludeDirectories>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableUAC>false</EnableUAC>
+      <AdditionalLibraryDirectories>$(OPENCV_DIR)\x64\vc16\lib;$(BOOST_LIBRARYDIR)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>opencv_world411.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <StackReserveSize>
+      </StackReserveSize>
+    </Link>
+    <PostBuildEvent>
+      <Command>xcopy /y /d "$(OutDir)ScanSegmentC.dll" "$(SolutionDir)ScanSegment\bin\Release"
+xcopy /y /d "$(OutDir)ScanSegmentC.pdb" "$(SolutionDir)ScanSegment\bin\Release"
+
+IF NOT EXIST "$(SolutionDir)ScanSegment\bin\Release\opencv_videoio_ffmpeg411_64.dll" copy "$(SolutionDir)Supporting Files\Software\OpenCv\Release\opencv_videoio_ffmpeg411_64.dll" "$(SolutionDir)ScanSegment\bin\Release\opencv_videoio_ffmpeg411_64.dll" /y
+
+IF NOT EXIST "$(SolutionDir)ScanSegment\bin\Release\opencv_world411.dll" copy "$(SolutionDir)Supporting Files\Software\OpenCv\Release\opencv_world411.dll" "$(SolutionDir)ScanSegment\bin\Release\opencv_world411.dll" /y
+
+IF NOT EXIST "$(SolutionDir)ScanSegment\bin\Release\opencv_world411.pdb" copy "$(SolutionDir)Supporting Files\Software\OpenCv\Release\opencv_world411.pdb" "$(SolutionDir)ScanSegment\bin\Release\opencv_world411.pdb" /y
+</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_USE_MATH_DEFINES;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;WIN32;_DEBUG;SCANSEGMENTC_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>$(OPENCV_DIR)\include;$(Boost_INCLUDE_DIR)</AdditionalIncludeDirectories>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableUAC>false</EnableUAC>
+      <AdditionalLibraryDirectories>$(OPENCV_DIR)\x64\vc16\lib;$(BOOST_LIBRARYDIR)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>opencv_world411d.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <StackReserveSize>
+      </StackReserveSize>
+    </Link>
+    <PostBuildEvent>
+      <Command>xcopy /y /d "$(OutDir)ScanSegmentC.dll" "$(SolutionDir)ScanSegment\bin\Debug"
+xcopy /y /d "$(OutDir)ScanSegmentC.pdb" "$(SolutionDir)ScanSegment\bin\Debug"
+
+IF NOT EXIST "$(SolutionDir)ScanSegment\bin\Debug\opencv_videoio_ffmpeg411_64.dll" copy "$(SolutionDir)Supporting Files\Software\OpenCv\Debug\opencv_videoio_ffmpeg411_64.dll" "$(SolutionDir)ScanSegment\bin\Debug\opencv_videoio_ffmpeg411_64.dll" /y
+
+IF NOT EXIST "$(SolutionDir)ScanSegment\bin\Debug\opencv_world411d.dll" copy "$(SolutionDir)Supporting Files\Software\OpenCv\Debug\opencv_world411d.dll" "$(SolutionDir)ScanSegment\bin\Debug\opencv_world411d.dll" /y
+
+IF NOT EXIST "$(SolutionDir)ScanSegment\bin\Debug\opencv_world411d.pdb" copy "$(SolutionDir)Supporting Files\Software\OpenCv\Debug\opencv_world411d.pdb" "$(SolutionDir)ScanSegment\bin\Debug\opencv_world411d.pdb" /y
+</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_USE_MATH_DEFINES;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;_DEBUG;SCANSEGMENTC_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>$(OPENCV_DIR)\include;$(Boost_INCLUDE_DIR)</AdditionalIncludeDirectories>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableUAC>false</EnableUAC>
+      <AdditionalLibraryDirectories>$(OPENCV_DIR)\x64\vc16\lib;$(BOOST_LIBRARYDIR)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>opencv_world411d.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <StackReserveSize>
+      </StackReserveSize>
+    </Link>
+    <PostBuildEvent>
+      <Command>xcopy /y /d "$(OutDir)ScanSegmentC.dll" "$(SolutionDir)ScanSegment\bin\Debug"
+xcopy /y /d "$(OutDir)ScanSegmentC.pdb" "$(SolutionDir)ScanSegment\bin\Debug"
+
+IF NOT EXIST "$(SolutionDir)ScanSegment\bin\Debug\opencv_videoio_ffmpeg411_64.dll" copy "$(SolutionDir)Supporting Files\Software\OpenCv\Debug\opencv_videoio_ffmpeg411_64.dll" "$(SolutionDir)ScanSegment\bin\Debug\opencv_videoio_ffmpeg411_64.dll" /y
+
+IF NOT EXIST "$(SolutionDir)ScanSegment\bin\Debug\opencv_world411d.dll" copy "$(SolutionDir)Supporting Files\Software\OpenCv\Debug\opencv_world411d.dll" "$(SolutionDir)ScanSegment\bin\Debug\opencv_world411d.dll" /y
+
+IF NOT EXIST "$(SolutionDir)ScanSegment\bin\Debug\opencv_world411d.pdb" copy "$(SolutionDir)Supporting Files\Software\OpenCv\Debug\opencv_world411d.pdb" "$(SolutionDir)ScanSegment\bin\Debug\opencv_world411d.pdb" /y
+</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_USE_MATH_DEFINES;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;WIN32;NDEBUG;SCANSEGMENTC_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>$(OPENCV_DIR)\include;$(Boost_INCLUDE_DIR)</AdditionalIncludeDirectories>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableUAC>false</EnableUAC>
+      <AdditionalLibraryDirectories>$(OPENCV_DIR)\x64\vc16\lib;$(BOOST_LIBRARYDIR)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>opencv_world411.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <StackReserveSize>
+      </StackReserveSize>
+    </Link>
+    <PostBuildEvent>
+      <Command>xcopy /y /d "$(OutDir)ScanSegmentC.dll" "$(SolutionDir)ScanSegment\bin\Release"
+xcopy /y /d "$(OutDir)ScanSegmentC.pdb" "$(SolutionDir)ScanSegment\bin\Release"
+
+IF NOT EXIST "$(SolutionDir)ScanSegment\bin\Release\opencv_videoio_ffmpeg411_64.dll" copy "$(SolutionDir)Supporting Files\Software\OpenCv\Release\opencv_videoio_ffmpeg411_64.dll" "$(SolutionDir)ScanSegment\bin\Release\opencv_videoio_ffmpeg411_64.dll" /y
+
+IF NOT EXIST "$(SolutionDir)ScanSegment\bin\Release\opencv_world411.dll" copy "$(SolutionDir)Supporting Files\Software\OpenCv\Release\opencv_world411.dll" "$(SolutionDir)ScanSegment\bin\Release\opencv_world411.dll" /y
+
+IF NOT EXIST "$(SolutionDir)ScanSegment\bin\Release\opencv_world411.pdb" copy "$(SolutionDir)Supporting Files\Software\OpenCv\Release\opencv_world411.pdb" "$(SolutionDir)ScanSegment\bin\Release\opencv_world411.pdb" /y
+</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClInclude Include="FastSuperpixel\DBscan.h" />
+    <ClInclude Include="FastSuperpixel\pixelQuery.h" />
+    <ClInclude Include="FastSuperpixel\regionQuery.h" />
+    <ClInclude Include="FastSuperpixel\supiel_neighbs.h" />
+    <ClInclude Include="framework.h" />
+    <ClInclude Include="Global.h" />
+    <ClInclude Include="lib_crs\AGaussianFeature.h" />
+    <ClInclude Include="lib_crs\ColorFeature.h" />
+    <ClInclude Include="lib_crs\CompactnessFeature.h" />
+    <ClInclude Include="lib_crs\ContourRelaxation.h" />
+    <ClInclude Include="lib_crs\crs_opencv.h" />
+    <ClInclude Include="lib_crs\DepthFeature.h" />
+    <ClInclude Include="lib_crs\FeatureType.h" />
+    <ClInclude Include="lib_crs\globalConstants.h" />
+    <ClInclude Include="lib_crs\GrayvalueFeature.h" />
+    <ClInclude Include="lib_crs\IFeature.h" />
+    <ClInclude Include="lib_crs\InitializationFunctions.h" />
+    <ClInclude Include="lib_crs\LabelStatisticsGauss.h" />
+    <ClInclude Include="lib_crs\TraversionGenerator.h" />
+    <ClInclude Include="lib_crs\VisualizationHelper.h" />
+    <ClInclude Include="lib_ers\Edge.h" />
+    <ClInclude Include="lib_ers\ers_opencv.h" />
+    <ClInclude Include="lib_ers\Image.h" />
+    <ClInclude Include="lib_ers\ImageIO.h" />
+    <ClInclude Include="lib_ers\MERCClustering.h" />
+    <ClInclude Include="lib_ers\MERCDisjointSet.h" />
+    <ClInclude Include="lib_ers\MERCEdge.h" />
+    <ClInclude Include="lib_ers\MERCFunctions.h" />
+    <ClInclude Include="lib_ers\MERCInput.h" />
+    <ClInclude Include="lib_ers\MERCInputImage.h" />
+    <ClInclude Include="lib_ers\MERCLazyGreedy.h" />
+    <ClInclude Include="lib_ers\MERCOutput.h" />
+    <ClInclude Include="lib_ers\MERCOutputImage.h" />
+    <ClInclude Include="lib_ers\MHeap.h" />
+    <ClInclude Include="lib_ers\MList.h" />
+    <ClInclude Include="lib_ers\MMFunctions.h" />
+    <ClInclude Include="lib_ers\MSubmodularHeap.h" />
+    <ClInclude Include="lib_etps\etps_opencv.h" />
+    <ClInclude Include="lib_etps\functions.h" />
+    <ClInclude Include="lib_etps\segengine.h" />
+    <ClInclude Include="lib_etps\stdafx.h" />
+    <ClInclude Include="lib_etps\structures.h" />
+    <ClInclude Include="lib_etps\tsdeque.h" />
+    <ClInclude Include="lib_etps\utils.h" />
+    <ClInclude Include="lib_eval\connected_components.h" />
+    <ClInclude Include="lib_fh\convolve.h" />
+    <ClInclude Include="lib_fh\disjoint-set.h" />
+    <ClInclude Include="lib_fh\fh_opencv.h" />
+    <ClInclude Include="lib_fh\filter.h" />
+    <ClInclude Include="lib_fh\image.h" />
+    <ClInclude Include="lib_fh\imconv.h" />
+    <ClInclude Include="lib_fh\imutil.h" />
+    <ClInclude Include="lib_fh\misc.h" />
+    <ClInclude Include="lib_fh\segment-graph.h" />
+    <ClInclude Include="lib_fh\segment-image-labels.h" />
+    <ClInclude Include="lib_fh\segment-image.h" />
+    <ClInclude Include="pch.h" />
+    <ClInclude Include="ScanSegmentC.h" />
+    <ClInclude Include="Utility.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="dllmain.cpp" />
+    <ClCompile Include="lib_ers\ers_opencv.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="lib_ers\MERCCInput.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="lib_ers\MERCDisjointSet.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="lib_ers\MERCFunctions.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="lib_ers\MERCLazyGreedy.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="lib_ers\MERCOutput.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="lib_etps\etps_opencv.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">_CRT_NO_VA_START_VALIDATION;_CRT_SECURE_NO_WARNINGS;_USE_MATH_DEFINES;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;WIN32;_DEBUG;SCANSEGMENTC_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">_CRT_NO_VA_START_VALIDATION;_CRT_SECURE_NO_WARNINGS;_USE_MATH_DEFINES;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;WIN32;NDEBUG;SCANSEGMENTC_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">_CRT_NO_VA_START_VALIDATION;_CRT_SECURE_NO_WARNINGS;_USE_MATH_DEFINES;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;_DEBUG;SCANSEGMENTC_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">_CRT_NO_VA_START_VALIDATION;_CRT_SECURE_NO_WARNINGS;_USE_MATH_DEFINES;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;NDEBUG;SCANSEGMENTC_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <ClCompile Include="lib_etps\functions.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">_CRT_NO_VA_START_VALIDATION;_CRT_SECURE_NO_WARNINGS;_USE_MATH_DEFINES;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;WIN32;_DEBUG;SCANSEGMENTC_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">_CRT_NO_VA_START_VALIDATION;_CRT_SECURE_NO_WARNINGS;_USE_MATH_DEFINES;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;WIN32;NDEBUG;SCANSEGMENTC_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">_CRT_NO_VA_START_VALIDATION;_CRT_SECURE_NO_WARNINGS;_USE_MATH_DEFINES;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;_DEBUG;SCANSEGMENTC_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">_CRT_NO_VA_START_VALIDATION;_CRT_SECURE_NO_WARNINGS;_USE_MATH_DEFINES;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;NDEBUG;SCANSEGMENTC_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <ClCompile Include="lib_etps\segengine.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">_CRT_NO_VA_START_VALIDATION;_CRT_SECURE_NO_WARNINGS;_USE_MATH_DEFINES;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;WIN32;_DEBUG;SCANSEGMENTC_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">_CRT_NO_VA_START_VALIDATION;_CRT_SECURE_NO_WARNINGS;_USE_MATH_DEFINES;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;WIN32;NDEBUG;SCANSEGMENTC_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">_CRT_NO_VA_START_VALIDATION;_CRT_SECURE_NO_WARNINGS;_USE_MATH_DEFINES;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;_DEBUG;SCANSEGMENTC_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">_CRT_NO_VA_START_VALIDATION;_CRT_SECURE_NO_WARNINGS;_USE_MATH_DEFINES;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;NDEBUG;SCANSEGMENTC_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <ClCompile Include="lib_etps\stdafx.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">_CRT_NO_VA_START_VALIDATION;_CRT_SECURE_NO_WARNINGS;_USE_MATH_DEFINES;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;WIN32;_DEBUG;SCANSEGMENTC_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">_CRT_NO_VA_START_VALIDATION;_CRT_SECURE_NO_WARNINGS;_USE_MATH_DEFINES;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;WIN32;NDEBUG;SCANSEGMENTC_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">_CRT_NO_VA_START_VALIDATION;_CRT_SECURE_NO_WARNINGS;_USE_MATH_DEFINES;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;_DEBUG;SCANSEGMENTC_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">_CRT_NO_VA_START_VALIDATION;_CRT_SECURE_NO_WARNINGS;_USE_MATH_DEFINES;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;NDEBUG;SCANSEGMENTC_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <ClCompile Include="lib_etps\structures.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">_CRT_NO_VA_START_VALIDATION;_CRT_SECURE_NO_WARNINGS;_USE_MATH_DEFINES;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;WIN32;_DEBUG;SCANSEGMENTC_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">_CRT_NO_VA_START_VALIDATION;_CRT_SECURE_NO_WARNINGS;_USE_MATH_DEFINES;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;WIN32;NDEBUG;SCANSEGMENTC_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">_CRT_NO_VA_START_VALIDATION;_CRT_SECURE_NO_WARNINGS;_USE_MATH_DEFINES;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;_DEBUG;SCANSEGMENTC_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">_CRT_NO_VA_START_VALIDATION;_CRT_SECURE_NO_WARNINGS;_USE_MATH_DEFINES;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;NDEBUG;SCANSEGMENTC_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <ClCompile Include="lib_etps\utils.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">_CRT_NO_VA_START_VALIDATION;_CRT_SECURE_NO_WARNINGS;_USE_MATH_DEFINES;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;WIN32;_DEBUG;SCANSEGMENTC_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">_CRT_NO_VA_START_VALIDATION;_CRT_SECURE_NO_WARNINGS;_USE_MATH_DEFINES;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;WIN32;NDEBUG;SCANSEGMENTC_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">_CRT_NO_VA_START_VALIDATION;_CRT_SECURE_NO_WARNINGS;_USE_MATH_DEFINES;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;_DEBUG;SCANSEGMENTC_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">_CRT_NO_VA_START_VALIDATION;_CRT_SECURE_NO_WARNINGS;_USE_MATH_DEFINES;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;NDEBUG;SCANSEGMENTC_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <ClCompile Include="pch.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="ScanSegmentC.cpp" />
+    <ClCompile Include="Utility.cpp" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>
