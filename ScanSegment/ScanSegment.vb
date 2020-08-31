@@ -19,6 +19,7 @@ Module ScanSegment
     Private Const SegmentationImagesDirectory As String = "\SegmentationImages\"
     Private Const NoiseOutlineImagesDirectory As String = "\NoiseOutlineImages\"
     Private Const NoiseSegmentationImagesDirectory As String = "\NoiseSegmentationImages\"
+    Private Const UnsplashImagesDirectory As String = "\Unsplash\"
     Private Const MulMin As Single = 0.1
     Private Const MulMax As Single = 5.0
     Private Const MulStepBig As Single = 0.1
@@ -28,6 +29,7 @@ Module ScanSegment
     Private Const CPUTolerance As Integer = 10
     Private Const DataStr As String = "Data"
     Private Const ComplexityStr As String = "Complexity"
+    Private Const AltComplexityStr As String = "AltComplexity"
     Private Const NoiseStr As String = "Noise"
     Private Const NumStr As String = "No"
     Private Const TypeStr As String = "Type"
@@ -41,6 +43,8 @@ Module ScanSegment
     Private Const ComplexityMul As Integer = 100
     Private Const ComplexitySuperpixels As Integer = 200
     Private Const NoiseMul As Integer = 1000
+    Private Const AltWidth As Integer = 3848
+    Private Const AltHeight As Integer = 2568
     Private SuperpixelList As New List(Of Integer)({100, 200, 300, 400, 500, 600})
     Private m_LUT As New List(Of Matrix(Of Byte))({Nothing, Nothing, Nothing, Nothing})
     Private m_SingleProcess As List(Of SegmentType) = {SegmentType.ScanSegment}.ToList
@@ -58,9 +62,15 @@ Module ScanSegment
             Dim oImageFiles As New List(Of IO.FileInfo)
             oImageFiles.AddRange(oDirectoryInfo.EnumerateFiles("*.jpg", IO.SearchOption.TopDirectoryOnly))
 
-            If oImageFiles.Count > 0 Then
-                Dim oStartDate As Date = Date.Now
+            Dim oUnsplashDirectoryInfo As New IO.DirectoryInfo(oFolderBrowserDialog.SelectedPath + UnsplashImagesDirectory)
+            Dim oUnsplashImageFiles As New List(Of IO.FileInfo)
+            oUnsplashImageFiles.AddRange(oUnsplashDirectoryInfo.EnumerateFiles("*.jpg", IO.SearchOption.TopDirectoryOnly))
 
+            Dim oStartDate As Date = Date.Now
+            Dim iCurrentProcessing As Integer = 0
+            Dim iProcessingSteps As Integer = 0
+
+            If oImageFiles.Count > 0 Then
 #Region "Directories"
                 If Not IO.Directory.Exists(oFolderBrowserDialog.SelectedPath + SaveDirectory) Then
                     IO.Directory.CreateDirectory(oFolderBrowserDialog.SelectedPath + SaveDirectory)
@@ -157,8 +167,9 @@ Module ScanSegment
                     Next
                 Next
 
-                Dim iProcessingSteps As Integer = oImageFiles.Count * SuperpixelList.Count * [Enum].GetValues(GetType(SegmentType)).GetLength(0)
-                Dim iCurrentProcessing As Integer = 0
+                iProcessingSteps = oImageFiles.Count * SuperpixelList.Count * [Enum].GetValues(GetType(SegmentType)).GetLength(0)
+                iCurrentProcessing = 0
+
                 initScan()
                 For Each oType In [Enum].GetValues(GetType(SegmentType))
                     Dim sTypeName As String = [Enum].GetName(GetType(SegmentType), oType)
@@ -400,65 +411,142 @@ Module ScanSegment
                     iCurrentProcessing = 0
                     iProcessingSteps = Math.Min(oImageFiles.Count, ComplexityCount) * ComplexityList.Count * [Enum].GetValues(GetType(SegmentType)).GetLength(0)
                     For Each oType In [Enum].GetValues(GetType(SegmentType))
-                        Dim sTypeName As String = [Enum].GetName(GetType(SegmentType), oType)
+                        If oType <> SegmentType.DSFH Then
+                            Dim sTypeName As String = [Enum].GetName(GetType(SegmentType), oType)
 
-                        Dim sComplexityFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "Complexity_" + sTypeName + ".xml"
-                        Dim oComplexity As Result = Nothing
+                            Dim sComplexityFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "Complexity_" + sTypeName + ".xml"
+                            Dim oComplexity As Result = Nothing
 
-                        If IO.File.Exists(sComplexityFile) Then
-                            oComplexity = DeserializeDataContractFile(Of Result)(sComplexityFile, Result.GetKnownTypes, , , False)
-                        Else
-                            oComplexity = New Result
-                        End If
+                            If IO.File.Exists(sComplexityFile) Then
+                                oComplexity = DeserializeDataContractFile(Of Result)(sComplexityFile, Result.GetKnownTypes, , , False)
+                            Else
+                                oComplexity = New Result
+                            End If
 
-                        For i = 0 To Math.Min(oImageFiles.Count, ComplexityCount) - 1
-                            Dim oImageFile As IO.FileInfo = oImageFiles(i)
+                            For i = 0 To Math.Min(oImageFiles.Count, ComplexityCount) - 1
+                                Dim oImageFile As IO.FileInfo = oImageFiles(i)
 
-                            Using oBitmap As New System.Drawing.Bitmap(oImageFile.FullName)
-                                Using oMatrix As Matrix(Of Byte) = BitmapToMatrix(oBitmap)
-                                    If Not oComplexity.Results.ContainsKey(oImageFile.Name) Then
-                                        oComplexity.Results.Add(oImageFile.Name, New Dictionary(Of Integer, Dictionary(Of SegmentType, Integer)))
-                                    End If
-                                    For Each fComplexity In ComplexityList
-                                        Dim iScaledWidth As Integer = CInt(CSng(oMatrix.Width) * fComplexity)
-                                        Dim iScaledHeight As Integer = CInt(CSng(oMatrix.Height) * fComplexity)
-                                        Dim oScaledBounds As New System.Drawing.Rectangle(0, 0, iScaledWidth, iScaledHeight)
+                                Using oBitmap As New System.Drawing.Bitmap(oImageFile.FullName)
+                                    Using oMatrix As Matrix(Of Byte) = BitmapToMatrix(oBitmap)
+                                        If Not oComplexity.Results.ContainsKey(oImageFile.Name) Then
+                                            oComplexity.Results.Add(oImageFile.Name, New Dictionary(Of Integer, Dictionary(Of SegmentType, Integer)))
+                                        End If
+                                        For Each fComplexity In ComplexityList
+                                            Dim iScaledWidth As Integer = CInt(CSng(oMatrix.Width) * fComplexity)
+                                            Dim iScaledHeight As Integer = CInt(CSng(oMatrix.Height) * fComplexity)
+                                            Dim oScaledBounds As New System.Drawing.Rectangle(0, 0, iScaledWidth, iScaledHeight)
 
-                                        Using oScaledMatrix As New Matrix(Of Byte)(iScaledHeight, iScaledWidth, oMatrix.NumberOfChannels)
-                                            CvInvoke.Resize(oMatrix, oScaledMatrix, oScaledMatrix.Size, 0, 0, CvEnum.Inter.Lanczos4)
+                                            Using oScaledMatrix As New Matrix(Of Byte)(iScaledHeight, iScaledWidth, oMatrix.NumberOfChannels)
+                                                CvInvoke.Resize(oMatrix, oScaledMatrix, oScaledMatrix.Size, 0, 0, CvEnum.Inter.Lanczos4)
 
-                                            Dim iComplexity As Integer = CInt(fComplexity * CSng(ComplexityMul))
-                                            If Not oComplexity.Results(oImageFile.Name).ContainsKey(iComplexity) Then
-                                                oComplexity.Results(oImageFile.Name).Add(iComplexity, New Dictionary(Of SegmentType, Integer))
-                                            End If
-                                            If (Not oComplexity.Results(oImageFile.Name)(iComplexity).ContainsKey(oType)) OrElse oComplexity.Results(oImageFile.Name)(iComplexity)(oType) = 0 Then
-                                                Dim oLabels As Matrix(Of Integer) = Nothing
-                                                Dim iSegments As Integer = 0
-
-                                                Dim iDuration As Integer = Segment(oScaledBounds, oScaledMatrix, oLabels, ComplexitySuperpixels, 1.0, True, oType, iSegments)
-                                                If oComplexity.Results(oImageFile.Name)(iComplexity).ContainsKey(oType) Then
-                                                    oComplexity.Results(oImageFile.Name)(iComplexity)(oType) = iDuration
-                                                Else
-                                                    oComplexity.Results(oImageFile.Name)(iComplexity).Add(oType, iDuration)
+                                                Dim iComplexity As Integer = CInt(fComplexity * CSng(ComplexityMul))
+                                                If Not oComplexity.Results(oImageFile.Name).ContainsKey(iComplexity) Then
+                                                    oComplexity.Results(oImageFile.Name).Add(iComplexity, New Dictionary(Of SegmentType, Integer))
                                                 End If
+                                                If (Not oComplexity.Results(oImageFile.Name)(iComplexity).ContainsKey(oType)) OrElse oComplexity.Results(oImageFile.Name)(iComplexity)(oType) = 0 Then
+                                                    Dim oLabels As Matrix(Of Integer) = Nothing
+                                                    Dim iSegments As Integer = 0
 
-                                                If MatrixNotNothing(oLabels) Then
-                                                    oLabels.Dispose()
-                                                    oLabels = Nothing
+                                                    Dim iDuration As Integer = Segment(oScaledBounds, oScaledMatrix, oLabels, ComplexitySuperpixels, 1.0, True, oType, iSegments)
+                                                    If oComplexity.Results(oImageFile.Name)(iComplexity).ContainsKey(oType) Then
+                                                        oComplexity.Results(oImageFile.Name)(iComplexity)(oType) = iDuration
+                                                    Else
+                                                        oComplexity.Results(oImageFile.Name)(iComplexity).Add(oType, iDuration)
+                                                    End If
+
+                                                    If MatrixNotNothing(oLabels) Then
+                                                        oLabels.Dispose()
+                                                        oLabels = Nothing
+                                                    End If
                                                 End If
-                                            End If
-                                        End Using
+                                            End Using
 
-                                        iCurrentProcessing += 1
-                                        Console.WriteLine(GetElapsed(oStartDate) + " Processing " + iCurrentProcessing.ToString + "/" + iProcessingSteps.ToString)
-                                    Next
+                                            iCurrentProcessing += 1
+                                            Console.WriteLine(GetElapsed(oStartDate) + " Processing " + iCurrentProcessing.ToString + "/" + iProcessingSteps.ToString)
+                                        Next
+                                    End Using
                                 End Using
-                            End Using
-                        Next
+                            Next
 
-                        SerializeDataContractFile(sComplexityFile, oComplexity, Result.GetKnownTypes, , , False)
+                            SerializeDataContractFile(sComplexityFile, oComplexity, Result.GetKnownTypes, , , False)
 
-                        Console.WriteLine(GetElapsed(oStartDate) + " Complexity " + sTypeName + " Saved")
+                            Console.WriteLine(GetElapsed(oStartDate) + " Complexity " + sTypeName + " Saved")
+                        End If
+                    Next
+#End Region
+
+                    ' alternate computational complexity
+#Region "AltComplexity"
+                    Console.WriteLine(GetElapsed(oStartDate) + " Alternate Complexity Start")
+
+                    iCurrentProcessing = 0
+                    iProcessingSteps = oUnsplashImageFiles.Count * ComplexityList.Count * [Enum].GetValues(GetType(SegmentType)).GetLength(0)
+                    For Each oType In [Enum].GetValues(GetType(SegmentType))
+                        If oType <> SegmentType.DSFH Then
+                            Dim sTypeName As String = [Enum].GetName(GetType(SegmentType), oType)
+
+                            Dim sComplexityFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "AltComplexity_" + sTypeName + ".xml"
+                            Dim oComplexity As Result = Nothing
+
+                            If IO.File.Exists(sComplexityFile) Then
+                                oComplexity = DeserializeDataContractFile(Of Result)(sComplexityFile, Result.GetKnownTypes, , , False)
+                            Else
+                                oComplexity = New Result
+                            End If
+
+                            For i = 0 To oUnsplashImageFiles.Count - 1
+                                Dim oImageFile As IO.FileInfo = oUnsplashImageFiles(i)
+
+                                Using oBitmap As New System.Drawing.Bitmap(oImageFile.FullName)
+                                    Using oAltMatrix As Matrix(Of Byte) = BitmapToMatrix(oBitmap)
+                                        Using oMatrix As New Matrix(Of Byte)(AltHeight, AltWidth, 3)
+                                            CvInvoke.Resize(oAltMatrix, oMatrix, oMatrix.Size, 0, 0, CvEnum.Inter.Lanczos4)
+
+                                            If Not oComplexity.Results.ContainsKey(oImageFile.Name) Then
+                                                oComplexity.Results.Add(oImageFile.Name, New Dictionary(Of Integer, Dictionary(Of SegmentType, Integer)))
+                                            End If
+                                            For Each fAltComplexity In ComplexityList
+                                                Dim fComplexity As Single = fAltComplexity / 8.0
+                                                Dim iScaledWidth As Integer = CInt(CSng(oMatrix.Width) * fComplexity)
+                                                Dim iScaledHeight As Integer = CInt(CSng(oMatrix.Height) * fComplexity)
+                                                Dim oScaledBounds As New System.Drawing.Rectangle(0, 0, iScaledWidth, iScaledHeight)
+
+                                                iCurrentProcessing += 1
+
+                                                Using oScaledMatrix As New Matrix(Of Byte)(iScaledHeight, iScaledWidth, oMatrix.NumberOfChannels)
+                                                    CvInvoke.Resize(oMatrix, oScaledMatrix, oScaledMatrix.Size, 0, 0, CvEnum.Inter.Lanczos4)
+
+                                                    Dim iComplexity As Integer = CInt(fComplexity * CSng(ComplexityMul))
+                                                    If Not oComplexity.Results(oImageFile.Name).ContainsKey(iComplexity) Then
+                                                        oComplexity.Results(oImageFile.Name).Add(iComplexity, New Dictionary(Of SegmentType, Integer))
+                                                    End If
+                                                    If (Not oComplexity.Results(oImageFile.Name)(iComplexity).ContainsKey(oType)) OrElse oComplexity.Results(oImageFile.Name)(iComplexity)(oType) = 0 Then
+                                                        Dim oLabels As Matrix(Of Integer) = Nothing
+                                                        Dim iSegments As Integer = 0
+
+                                                        If Not oComplexity.Results(oImageFile.Name)(iComplexity).ContainsKey(oType) Then
+                                                            Dim iDuration As Integer = Segment(oScaledBounds, oScaledMatrix, oLabels, ComplexitySuperpixels, 1.0, True, oType, iSegments)
+                                                            oComplexity.Results(oImageFile.Name)(iComplexity).Add(oType, iDuration)
+                                                        End If
+
+                                                        If MatrixNotNothing(oLabels) Then
+                                                            oLabels.Dispose()
+                                                            oLabels = Nothing
+                                                        End If
+                                                    End If
+                                                End Using
+
+                                                Console.WriteLine(GetElapsed(oStartDate) + " Processing " + iCurrentProcessing.ToString + "/" + iProcessingSteps.ToString)
+                                            Next
+                                        End Using
+                                    End Using
+                                End Using
+                            Next
+
+                            SerializeDataContractFile(sComplexityFile, oComplexity, Result.GetKnownTypes, , , False)
+
+                            Console.WriteLine(GetElapsed(oStartDate) + " Alternate Complexity " + sTypeName + " Saved")
+                        End If
                     Next
 #End Region
 
@@ -1025,189 +1113,236 @@ Module ScanSegment
                     Using oDataDocument As New ExcelPackage()
                         oDataDocument.Workbook.Worksheets.Add(DataStr)
                         oDataDocument.Workbook.Worksheets.Add(ComplexityStr)
+                        oDataDocument.Workbook.Worksheets.Add(AltComplexityStr)
                         oDataDocument.Workbook.Worksheets.Add(NoiseStr)
                         Using oDataSheet As ExcelWorksheet = oDataDocument.Workbook.Worksheets(DataStr)
                             Using oComplexitySheet As ExcelWorksheet = oDataDocument.Workbook.Worksheets(ComplexityStr)
-                                Using oNoiseSheet As ExcelWorksheet = oDataDocument.Workbook.Worksheets(NoiseStr)
-                                    Const iNumColData As Integer = 1
-                                    Const iTypeColData As Integer = 2
-                                    Const iSuperpixelsColData As Integer = 3
-                                    Const iSegmentsColData As Integer = 4
-                                    Const iTimeColData As Integer = 5
-                                    Const iBPColData As Integer = 6
-                                    Const iUEColData As Integer = 7
-                                    Const iASAColData As Integer = 8
+                                Using oAltComplexitySheet As ExcelWorksheet = oDataDocument.Workbook.Worksheets(AltComplexityStr)
+                                    Using oNoiseSheet As ExcelWorksheet = oDataDocument.Workbook.Worksheets(NoiseStr)
+                                        Const iNumColData As Integer = 1
+                                        Const iTypeColData As Integer = 2
+                                        Const iSuperpixelsColData As Integer = 3
+                                        Const iSegmentsColData As Integer = 4
+                                        Const iTimeColData As Integer = 5
+                                        Const iBPColData As Integer = 6
+                                        Const iUEColData As Integer = 7
+                                        Const iASAColData As Integer = 8
 
-                                    oDataSheet.SetValue(1, iNumColData, NumStr)
-                                    oDataSheet.SetValue(1, iTypeColData, TypeStr)
-                                    oDataSheet.SetValue(1, iSuperpixelsColData, SuperpixelsStr)
-                                    oDataSheet.SetValue(1, iSegmentsColData, SegmentsStr)
-                                    oDataSheet.SetValue(1, iTimeColData, TimeStr)
-                                    oDataSheet.SetValue(1, iBPColData, BPStr)
-                                    oDataSheet.SetValue(1, iUEColData, UEStr)
-                                    oDataSheet.SetValue(1, iASAColData, ASAStr)
+                                        oDataSheet.SetValue(1, iNumColData, NumStr)
+                                        oDataSheet.SetValue(1, iTypeColData, TypeStr)
+                                        oDataSheet.SetValue(1, iSuperpixelsColData, SuperpixelsStr)
+                                        oDataSheet.SetValue(1, iSegmentsColData, SegmentsStr)
+                                        oDataSheet.SetValue(1, iTimeColData, TimeStr)
+                                        oDataSheet.SetValue(1, iBPColData, BPStr)
+                                        oDataSheet.SetValue(1, iUEColData, UEStr)
+                                        oDataSheet.SetValue(1, iASAColData, ASAStr)
 
-                                    Dim iCurrentRow As Integer = 2
-                                    For Each oType In [Enum].GetValues(GetType(SegmentType))
-                                        Dim sTypeName As String = [Enum].GetName(GetType(SegmentType), oType)
+                                        Dim iCurrentRow As Integer = 2
+                                        For Each oType In [Enum].GetValues(GetType(SegmentType))
+                                            Dim sTypeName As String = [Enum].GetName(GetType(SegmentType), oType)
 
-                                        Dim sQCFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "QC_" + sTypeName + ".xml"
-                                        Dim oQC As Quantitative = Nothing
+                                            Dim sQCFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "QC_" + sTypeName + ".xml"
+                                            Dim oQC As Quantitative = Nothing
 
-                                        Dim sTimingsFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "Timings_" + sTypeName + ".xml"
-                                        Dim oTimings As Result = Nothing
+                                            Dim sTimingsFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "Timings_" + sTypeName + ".xml"
+                                            Dim oTimings As Result = Nothing
 
-                                        Dim sSegmentsFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "Segments_" + sTypeName + ".xml"
-                                        Dim oSegments As Result = Nothing
+                                            Dim sSegmentsFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "Segments_" + sTypeName + ".xml"
+                                            Dim oSegments As Result = Nothing
 
-                                        If IO.File.Exists(sTimingsFile) AndAlso IO.File.Exists(sSegmentsFile) AndAlso IO.File.Exists(sQCFile) Then
-                                            oTimings = DeserializeDataContractFile(Of Result)(sTimingsFile, Result.GetKnownTypes, , , False)
-                                            oSegments = DeserializeDataContractFile(Of Result)(sSegmentsFile, Result.GetKnownTypes, , , False)
-                                            oQC = DeserializeDataContractFile(Of Quantitative)(sQCFile, Quantitative.GetKnownTypes, , , False)
+                                            If IO.File.Exists(sTimingsFile) AndAlso IO.File.Exists(sSegmentsFile) AndAlso IO.File.Exists(sQCFile) Then
+                                                oTimings = DeserializeDataContractFile(Of Result)(sTimingsFile, Result.GetKnownTypes, , , False)
+                                                oSegments = DeserializeDataContractFile(Of Result)(sSegmentsFile, Result.GetKnownTypes, , , False)
+                                                oQC = DeserializeDataContractFile(Of Quantitative)(sQCFile, Quantitative.GetKnownTypes, , , False)
 
-                                            For Each iSuperpixel In SuperpixelList
-                                                Dim iCount As Integer = 0
-                                                Dim iTimeTotal As Integer = 0
-                                                Dim iSegmentsTotal As Integer = 0
-                                                Dim fBPTotal As Single = 0
-                                                Dim fUETotal As Single = 0
-                                                Dim fASATotal As Single = 0
+                                                For Each iSuperpixel In SuperpixelList
+                                                    Dim iCount As Integer = 0
+                                                    Dim iTimeTotal As Integer = 0
+                                                    Dim iSegmentsTotal As Integer = 0
+                                                    Dim fBPTotal As Single = 0
+                                                    Dim fUETotal As Single = 0
+                                                    Dim fASATotal As Single = 0
 
-                                                For Each sFileName In oQC.Results.Keys
-                                                    Dim oQCResult As Tuple(Of Single, Single, Single) = oQC.Results(sFileName)(iSuperpixel)(oType)
-                                                    Dim iTime As Integer = oTimings.Results(sFileName)(iSuperpixel)(oType)
-                                                    Dim iSegments As Integer = oSegments.Results(sFileName)(iSuperpixel)(oType)
+                                                    For Each sFileName In oQC.Results.Keys
+                                                        Dim oQCResult As Tuple(Of Single, Single, Single) = oQC.Results(sFileName)(iSuperpixel)(oType)
+                                                        Dim iTime As Integer = oTimings.Results(sFileName)(iSuperpixel)(oType)
+                                                        Dim iSegments As Integer = oSegments.Results(sFileName)(iSuperpixel)(oType)
 
-                                                    iCount += 1
-                                                    iTimeTotal += iTime
-                                                    iSegmentsTotal += iSegments
-                                                    fBPTotal += oQCResult.Item1
-                                                    fUETotal += oQCResult.Item2
-                                                    fASATotal += oQCResult.Item3
+                                                        iCount += 1
+                                                        iTimeTotal += iTime
+                                                        iSegmentsTotal += iSegments
+                                                        fBPTotal += oQCResult.Item1
+                                                        fUETotal += oQCResult.Item2
+                                                        fASATotal += oQCResult.Item3
+                                                    Next
+
+                                                    oDataSheet.SetValue(iCurrentRow, iNumColData, iCurrentRow - 1)
+                                                    oDataSheet.SetValue(iCurrentRow, iTypeColData, sTypeName)
+                                                    oDataSheet.SetValue(iCurrentRow, iSuperpixelsColData, iSuperpixel)
+                                                    oDataSheet.SetValue(iCurrentRow, iSegmentsColData, CInt(CSng(iSegmentsTotal) / CSng(iCount)))
+                                                    oDataSheet.SetValue(iCurrentRow, iTimeColData, CInt(CSng(iTimeTotal) / CSng(iCount)))
+                                                    oDataSheet.SetValue(iCurrentRow, iBPColData, fBPTotal / CSng(iCount))
+                                                    oDataSheet.SetValue(iCurrentRow, iUEColData, fUETotal / CSng(iCount))
+                                                    oDataSheet.SetValue(iCurrentRow, iASAColData, fASATotal / CSng(iCount))
+                                                    iCurrentRow += 1
                                                 Next
+                                            End If
+                                        Next
 
-                                                oDataSheet.SetValue(iCurrentRow, iNumColData, iCurrentRow - 1)
-                                                oDataSheet.SetValue(iCurrentRow, iTypeColData, sTypeName)
-                                                oDataSheet.SetValue(iCurrentRow, iSuperpixelsColData, iSuperpixel)
-                                                oDataSheet.SetValue(iCurrentRow, iSegmentsColData, CInt(CSng(iSegmentsTotal) / CSng(iCount)))
-                                                oDataSheet.SetValue(iCurrentRow, iTimeColData, CInt(CSng(iTimeTotal) / CSng(iCount)))
-                                                oDataSheet.SetValue(iCurrentRow, iBPColData, fBPTotal / CSng(iCount))
-                                                oDataSheet.SetValue(iCurrentRow, iUEColData, fUETotal / CSng(iCount))
-                                                oDataSheet.SetValue(iCurrentRow, iASAColData, fASATotal / CSng(iCount))
-                                                iCurrentRow += 1
-                                            Next
-                                        End If
-                                    Next
+                                        ' autofit columns
+                                        oDataSheet.Cells(oDataSheet.Dimension.Start.Row, oDataSheet.Dimension.Start.Column, oDataSheet.Dimension.End.Row, oDataSheet.Dimension.End.Column).AutoFitColumns()
 
-                                    ' autofit columns
-                                    oDataSheet.Cells(oDataSheet.Dimension.Start.Row, oDataSheet.Dimension.Start.Column, oDataSheet.Dimension.End.Row, oDataSheet.Dimension.End.Column).AutoFitColumns()
+                                        Const iNumColComplexity As Integer = 1
+                                        Const iTypeColComplexity As Integer = 2
+                                        Const iComplexityColComplexity As Integer = 3
+                                        Const iTimeColComplexity As Integer = 4
 
-                                    Const iNumColComplexity As Integer = 1
-                                    Const iTypeColComplexity As Integer = 2
-                                    Const iComplexityColComplexity As Integer = 3
-                                    Const iTimeColComplexity As Integer = 4
+                                        oComplexitySheet.SetValue(1, iNumColComplexity, NumStr)
+                                        oComplexitySheet.SetValue(1, iTypeColComplexity, TypeStr)
+                                        oComplexitySheet.SetValue(1, iComplexityColComplexity, ComplexityStr)
+                                        oComplexitySheet.SetValue(1, iTimeColComplexity, TimeStr)
 
-                                    oComplexitySheet.SetValue(1, iNumColComplexity, NumStr)
-                                    oComplexitySheet.SetValue(1, iTypeColComplexity, TypeStr)
-                                    oComplexitySheet.SetValue(1, iComplexityColComplexity, ComplexityStr)
-                                    oComplexitySheet.SetValue(1, iTimeColComplexity, TimeStr)
+                                        iCurrentRow = 2
+                                        For Each oType In [Enum].GetValues(GetType(SegmentType))
+                                            If oType <> SegmentType.DSFH Then
+                                                Dim sTypeName As String = [Enum].GetName(GetType(SegmentType), oType)
 
-                                    iCurrentRow = 2
-                                    For Each oType In [Enum].GetValues(GetType(SegmentType))
-                                        Dim sTypeName As String = [Enum].GetName(GetType(SegmentType), oType)
+                                                Dim sComplexityFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "Complexity_" + sTypeName + ".xml"
+                                                Dim oComplexity As Result = Nothing
 
-                                        Dim sComplexityFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "Complexity_" + sTypeName + ".xml"
-                                        Dim oComplexity As Result = Nothing
+                                                If IO.File.Exists(sComplexityFile) Then
+                                                    oComplexity = DeserializeDataContractFile(Of Result)(sComplexityFile, Result.GetKnownTypes, , , False)
 
-                                        If IO.File.Exists(sComplexityFile) Then
-                                            oComplexity = DeserializeDataContractFile(Of Result)(sComplexityFile, Result.GetKnownTypes, , , False)
+                                                    For Each fComplexity In ComplexityList
+                                                        Dim iComplexity As Integer = CInt(fComplexity * CSng(ComplexityMul))
+                                                        Dim iCount As Integer = 0
+                                                        Dim iTimeTotal As Integer = 0
 
-                                            For Each fComplexity In ComplexityList
-                                                Dim iComplexity As Integer = CInt(fComplexity * CSng(ComplexityMul))
-                                                Dim iCount As Integer = 0
-                                                Dim iTimeTotal As Integer = 0
+                                                        For Each sFileName In oComplexity.Results.Keys
+                                                            Dim iTime As Integer = oComplexity.Results(sFileName)(iComplexity)(oType)
 
-                                                For Each sFileName In oComplexity.Results.Keys
-                                                    Dim iTime As Integer = oComplexity.Results(sFileName)(iComplexity)(oType)
+                                                            iCount += 1
+                                                            iTimeTotal += iTime
+                                                        Next
 
-                                                    iCount += 1
-                                                    iTimeTotal += iTime
+                                                        oComplexitySheet.SetValue(iCurrentRow, iNumColComplexity, iCurrentRow - 1)
+                                                        oComplexitySheet.SetValue(iCurrentRow, iTypeColComplexity, sTypeName)
+                                                        oComplexitySheet.SetValue(iCurrentRow, iComplexityColComplexity, fComplexity)
+                                                        oComplexitySheet.SetValue(iCurrentRow, iTimeColComplexity, CInt(CSng(iTimeTotal) / CSng(iCount)))
+                                                        iCurrentRow += 1
+                                                    Next
+                                                End If
+                                            End If
+                                        Next
+
+                                        ' autofit columns
+                                        oComplexitySheet.Cells(oComplexitySheet.Dimension.Start.Row, oComplexitySheet.Dimension.Start.Column, oComplexitySheet.Dimension.End.Row, oComplexitySheet.Dimension.End.Column).AutoFitColumns()
+
+                                        oAltComplexitySheet.SetValue(1, iNumColComplexity, NumStr)
+                                        oAltComplexitySheet.SetValue(1, iTypeColComplexity, TypeStr)
+                                        oAltComplexitySheet.SetValue(1, iComplexityColComplexity, ComplexityStr)
+                                        oAltComplexitySheet.SetValue(1, iTimeColComplexity, TimeStr)
+
+                                        iCurrentRow = 2
+                                        For Each oType In [Enum].GetValues(GetType(SegmentType))
+                                            If oType <> SegmentType.DSFH Then
+                                                Dim sTypeName As String = [Enum].GetName(GetType(SegmentType), oType)
+
+                                                Dim sAltComplexityFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "AltComplexity_" + sTypeName + ".xml"
+                                                Dim oAltComplexity As Result = Nothing
+
+                                                If IO.File.Exists(sAltComplexityFile) Then
+                                                    oAltComplexity = DeserializeDataContractFile(Of Result)(sAltComplexityFile, Result.GetKnownTypes, , , False)
+
+                                                    For Each fAltComplexity In ComplexityList
+                                                        Dim fComplexity As Single = fAltComplexity / 8.0
+                                                        Dim iComplexity As Integer = CInt(fComplexity * CSng(ComplexityMul))
+                                                        Dim iCount As Integer = 0
+                                                        Dim iTimeTotal As Integer = 0
+
+                                                        For Each sFileName In oAltComplexity.Results.Keys
+                                                            Dim iTime As Integer = oAltComplexity.Results(sFileName)(iComplexity)(oType)
+
+                                                            iCount += 1
+                                                            iTimeTotal += iTime
+                                                        Next
+
+                                                        oAltComplexitySheet.SetValue(iCurrentRow, iNumColComplexity, iCurrentRow - 1)
+                                                        oAltComplexitySheet.SetValue(iCurrentRow, iTypeColComplexity, sTypeName)
+                                                        oAltComplexitySheet.SetValue(iCurrentRow, iComplexityColComplexity, fComplexity)
+                                                        oAltComplexitySheet.SetValue(iCurrentRow, iTimeColComplexity, CInt(CSng(iTimeTotal) / CSng(iCount)))
+                                                        iCurrentRow += 1
+                                                    Next
+                                                End If
+                                            End If
+                                        Next
+
+                                        ' autofit columns
+                                        oAltComplexitySheet.Cells(oAltComplexitySheet.Dimension.Start.Row, oAltComplexitySheet.Dimension.Start.Column, oAltComplexitySheet.Dimension.End.Row, oAltComplexitySheet.Dimension.End.Column).AutoFitColumns()
+
+                                        Const iNumColNoise As Integer = 1
+                                        Const iTypeColNoise As Integer = 2
+                                        Const iNoiseColNoise As Integer = 3
+                                        Const iBPColNoise As Integer = 4
+                                        Const iUEColNoise As Integer = 5
+                                        Const iASAColNoise As Integer = 6
+
+                                        oNoiseSheet.SetValue(1, iNumColNoise, NumStr)
+                                        oNoiseSheet.SetValue(1, iTypeColNoise, TypeStr)
+                                        oNoiseSheet.SetValue(1, iNoiseColNoise, NoiseStr)
+                                        oNoiseSheet.SetValue(1, iBPColNoise, BPStr)
+                                        oNoiseSheet.SetValue(1, iUEColNoise, UEStr)
+                                        oNoiseSheet.SetValue(1, iASAColNoise, ASAStr)
+
+                                        iCurrentRow = 2
+                                        For Each oType In [Enum].GetValues(GetType(SegmentType))
+                                            Dim sTypeName As String = [Enum].GetName(GetType(SegmentType), oType)
+
+                                            Dim sQCNoiseFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "QCNoise_" + sTypeName + ".xml"
+                                            Dim oQCNoise As Quantitative = Nothing
+
+                                            If IO.File.Exists(sQCNoiseFile) Then
+                                                oQCNoise = DeserializeDataContractFile(Of Quantitative)(sQCNoiseFile, Quantitative.GetKnownTypes, , , False)
+
+                                                For Each fNoise In NoiseList
+                                                    Dim iNoise As Integer = CInt(fNoise * CSng(NoiseMul))
+                                                    Dim iCount As Integer = 0
+                                                    Dim fBPTotal As Single = 0
+                                                    Dim fUETotal As Single = 0
+                                                    Dim fASATotal As Single = 0
+
+                                                    For Each sFileName In oQCNoise.Results.Keys
+                                                        Dim oQCNoiseResult As Tuple(Of Single, Single, Single) = oQCNoise.Results(sFileName)(iNoise)(oType)
+
+                                                        iCount += 1
+                                                        fBPTotal += oQCNoiseResult.Item1
+                                                        fUETotal += oQCNoiseResult.Item2
+                                                        fASATotal += oQCNoiseResult.Item3
+                                                    Next
+
+                                                    oNoiseSheet.SetValue(iCurrentRow, iNumColNoise, iCurrentRow - 1)
+                                                    oNoiseSheet.SetValue(iCurrentRow, iTypeColNoise, sTypeName)
+                                                    oNoiseSheet.SetValue(iCurrentRow, iNoiseColNoise, fNoise)
+                                                    oNoiseSheet.SetValue(iCurrentRow, iBPColNoise, fBPTotal / CSng(iCount))
+                                                    oNoiseSheet.SetValue(iCurrentRow, iUEColNoise, fUETotal / CSng(iCount))
+                                                    oNoiseSheet.SetValue(iCurrentRow, iASAColNoise, fASATotal / CSng(iCount))
+                                                    iCurrentRow += 1
                                                 Next
+                                            End If
+                                        Next
 
-                                                oComplexitySheet.SetValue(iCurrentRow, iNumColComplexity, iCurrentRow - 1)
-                                                oComplexitySheet.SetValue(iCurrentRow, iTypeColComplexity, sTypeName)
-                                                oComplexitySheet.SetValue(iCurrentRow, iComplexityColComplexity, fComplexity)
-                                                oComplexitySheet.SetValue(iCurrentRow, iTimeColComplexity, CInt(CSng(iTimeTotal) / CSng(iCount)))
-                                                iCurrentRow += 1
-                                            Next
+                                        ' autofit columns
+                                        oNoiseSheet.Cells(oNoiseSheet.Dimension.Start.Row, oNoiseSheet.Dimension.Start.Column, oNoiseSheet.Dimension.End.Row, oNoiseSheet.Dimension.End.Column).AutoFitColumns()
+
+                                        Dim sDataFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "ScanSegmentData.xlsx"
+                                        Dim oDataInfo As New IO.FileInfo(sDataFile)
+                                        If oDataInfo.Exists Then
+                                            oDataInfo.Delete()
                                         End If
-                                    Next
 
-                                    ' autofit columns
-                                    oComplexitySheet.Cells(oComplexitySheet.Dimension.Start.Row, oComplexitySheet.Dimension.Start.Column, oComplexitySheet.Dimension.End.Row, oComplexitySheet.Dimension.End.Column).AutoFitColumns()
-
-                                    Const iNumColNoise As Integer = 1
-                                    Const iTypeColNoise As Integer = 2
-                                    Const iNoiseColNoise As Integer = 3
-                                    Const iBPColNoise As Integer = 4
-                                    Const iUEColNoise As Integer = 5
-                                    Const iASAColNoise As Integer = 6
-
-                                    oNoiseSheet.SetValue(1, iNumColNoise, NumStr)
-                                    oNoiseSheet.SetValue(1, iTypeColNoise, TypeStr)
-                                    oNoiseSheet.SetValue(1, iNoiseColNoise, NoiseStr)
-                                    oNoiseSheet.SetValue(1, iBPColNoise, BPStr)
-                                    oNoiseSheet.SetValue(1, iUEColNoise, UEStr)
-                                    oNoiseSheet.SetValue(1, iASAColNoise, ASAStr)
-
-                                    iCurrentRow = 2
-                                    For Each oType In [Enum].GetValues(GetType(SegmentType))
-                                        Dim sTypeName As String = [Enum].GetName(GetType(SegmentType), oType)
-
-                                        Dim sQCNoiseFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "QCNoise_" + sTypeName + ".xml"
-                                        Dim oQCNoise As Quantitative = Nothing
-
-                                        If IO.File.Exists(sQCNoiseFile) Then
-                                            oQCNoise = DeserializeDataContractFile(Of Quantitative)(sQCNoiseFile, Quantitative.GetKnownTypes, , , False)
-
-                                            For Each fNoise In NoiseList
-                                                Dim iNoise As Integer = CInt(fNoise * CSng(NoiseMul))
-                                                Dim iCount As Integer = 0
-                                                Dim fBPTotal As Single = 0
-                                                Dim fUETotal As Single = 0
-                                                Dim fASATotal As Single = 0
-
-                                                For Each sFileName In oQCNoise.Results.Keys
-                                                    Dim oQCNoiseResult As Tuple(Of Single, Single, Single) = oQCNoise.Results(sFileName)(iNoise)(oType)
-
-                                                    iCount += 1
-                                                    fBPTotal += oQCNoiseResult.Item1
-                                                    fUETotal += oQCNoiseResult.Item2
-                                                    fASATotal += oQCNoiseResult.Item3
-                                                Next
-
-                                                oNoiseSheet.SetValue(iCurrentRow, iNumColNoise, iCurrentRow - 1)
-                                                oNoiseSheet.SetValue(iCurrentRow, iTypeColNoise, sTypeName)
-                                                oNoiseSheet.SetValue(iCurrentRow, iNoiseColNoise, fNoise)
-                                                oNoiseSheet.SetValue(iCurrentRow, iBPColNoise, fBPTotal / CSng(iCount))
-                                                oNoiseSheet.SetValue(iCurrentRow, iUEColNoise, fUETotal / CSng(iCount))
-                                                oNoiseSheet.SetValue(iCurrentRow, iASAColNoise, fASATotal / CSng(iCount))
-                                                iCurrentRow += 1
-                                            Next
-                                        End If
-                                    Next
-
-                                    ' autofit columns
-                                    oNoiseSheet.Cells(oNoiseSheet.Dimension.Start.Row, oNoiseSheet.Dimension.Start.Column, oNoiseSheet.Dimension.End.Row, oNoiseSheet.Dimension.End.Column).AutoFitColumns()
-
-                                    Dim sDataFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "ScanSegmentData.xlsx"
-                                    Dim oDataInfo As New IO.FileInfo(sDataFile)
-                                    If oDataInfo.Exists Then
-                                        oDataInfo.Delete()
-                                    End If
-
-                                    Console.WriteLine(GetElapsed(oStartDate) + " Saving File " + oDataInfo.Name)
-                                    oDataDocument.SaveAs(oDataInfo)
+                                        Console.WriteLine(GetElapsed(oStartDate) + " Saving File " + oDataInfo.Name)
+                                        oDataDocument.SaveAs(oDataInfo)
+                                    End Using
                                 End Using
                             End Using
                         End Using

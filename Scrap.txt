@@ -3271,3 +3271,10 @@ int ScanSegment::segmentWS(const cv::Mat& mat, const cv::Rect& bounds, cv::Mat* 
 		auto tend = std::chrono::high_resolution_clock::now();
 		*duration = (int)std::chrono::duration_cast<std::chrono::microseconds>(tend - tstart).count();
 	}
+
+	
+                                                            ' periodic save
+                                                            If iCurrentProcessing Mod 10 = 0 Then
+                                                                SerializeDataContractFile(sComplexityFile, oComplexity, Result.GetKnownTypes, , , False)
+                                                                Console.WriteLine(GetElapsed(oStartDate) + " Saved File #" + CInt(Math.Floor(iCurrentProcessing / 10) + 1).ToString)
+                                                            End If
