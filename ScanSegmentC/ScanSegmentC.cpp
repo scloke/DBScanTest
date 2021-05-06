@@ -52,7 +52,7 @@ void exitScan()
 	}
 }
 
-int segment(BYTE* imgstruct_in, BYTE* imgbuffer_in, BYTE* imgstructlabels_out, BYTE* imgbufferlabels_out, int boundsx, int boundsy, int boundswidth, int boundsheight, int superpixels, float multiplier, bool merge, int type, int* duration)
+int segment(BYTE* imgstruct_in, BYTE* imgbuffer_in, BYTE* imgstructlabels_out, BYTE* imgbufferlabels_out, int boundsx, int boundsy, int boundswidth, int boundsheight, int superpixels, float multiplier, bool merge, int type, int processor, int* duration)
 {
 	cv::Mat img_input = utility::getMat(imgstruct_in, imgbuffer_in);
 	cv::Mat img_labels = utility::getMat(imgstructlabels_out, imgbufferlabels_out);
@@ -62,7 +62,7 @@ int segment(BYTE* imgstruct_in, BYTE* imgbuffer_in, BYTE* imgstructlabels_out, B
 	if (type == 0) {
 		auto tstart = std::chrono::high_resolution_clock::now();
 
-		segments = scan0->segment(img_input, bounds, &img_labels, superpixels, multiplier, merge);
+		segments = scan0->segment(img_input, bounds, &img_labels, superpixels, multiplier, merge, processor);
 
 		auto tend = std::chrono::high_resolution_clock::now();
 		*duration = (int)std::chrono::duration_cast<std::chrono::microseconds>(tend - tstart).count();
@@ -161,28 +161,42 @@ ScanSegment::~ScanSegment()
 {
 }
 
-int ScanSegment::segment(const cv::Mat& mat, const cv::Rect& bounds, cv::Mat* labelsMat, int superpixels, float multiplier, bool merge)
+int ScanSegment::segment(const cv::Mat& mat, const cv::Rect& bounds, cv::Mat* labelsMat, int superpixels, float multiplier, bool merge, int processor)
 {
 	int imageWidth = mat.cols;
 	int imageHeight = mat.rows;
 	indexSize = bounds.height * bounds.width;
 	int adjSuperpixels = (int)((float)superpixels * multiplier);
 	clusterSize = (int)(1.1f * (float)(bounds.width * bounds.height) / (float)adjSuperpixels);
+	int limitthreads = concurrentthreads;
+	if (processor > 0) {
+		limitthreads = MIN(concurrentthreads, processor);
+	}
+
+	// 1) divide bounds area into uniformly distributed rectangular segments
+	int shortCount = (int)floorf(sqrtf((float)limitthreads));
+	int longCount = limitthreads / shortCount;
+	int horzDiv = bounds.width > bounds.height ? longCount : shortCount;
+	int vertDiv = bounds.width > bounds.height ? shortCount : longCount;
+	float horzLength = (float)bounds.width / (float)horzDiv;
+	float vertLength = (float)bounds.height / (float)vertDiv;
+	int effectivethreads = horzDiv * vertDiv;
 
 	// create buffers and initialise
 	int* labelsBuffer = static_cast<int*>(malloc(indexSize * sizeof(int)));
 	int* clusterBuffer = static_cast<int*>(malloc(indexSize * sizeof(int)));
 	cv::Vec3b* labBuffer = static_cast<cv::Vec3b*>(malloc(indexSize * sizeof(cv::Vec3b)));
 	int neighbourLocBuffer[neighbourCount];
-	std::vector<int*> offsetVec(neighbourCount);
+	std::vector<int*> offsetVec(effectivethreads);
 	int offsetSize = (clusterSize + 1) * sizeof(int);
 	bool offsetAllocated = true;
-	for (int i = 0; i < neighbourCount; i++) {
+	for (int i = 0; i < effectivethreads; i++) {
 		offsetVec[i] = static_cast<int*>(malloc(offsetSize));
 		if (offsetVec[i] == NULL) {
 			offsetAllocated = false;
 		}
-
+	}
+	for (int i = 0; i < neighbourCount; i++) {
 		neighbourLocBuffer[i] = (neighbourLoc[i].y * bounds.width) + neighbourLoc[i].x;
 	}
 	std::atomic<int> clusterIndex, locationIndex, clusterID;
@@ -209,14 +223,6 @@ int ScanSegment::segment(const cv::Mat& mat, const cv::Rect& bounds, cv::Mat* la
 		// set labels to unclassified
 		std::fill(labelsBuffer, labelsBuffer + indexSize, UNCLASSIFIED);
 
-		// 1) divide bounds area into uniformly distributed rectangular segments
-		int shortCount = (int)floorf(sqrtf((float)concurrentthreads));
-		int longCount = concurrentthreads / shortCount;
-		int horzDiv = bounds.width > bounds.height ? longCount : shortCount;
-		int vertDiv = bounds.width > bounds.height ? shortCount : longCount;
-		float horzLength = (float)bounds.width / (float)horzDiv;
-		float vertLength = (float)bounds.height / (float)vertDiv;
-
 		// 2) get array of seed rects
 		std::vector<cv::Rect> seedRects(horzDiv * vertDiv);
 		for (int y = 0; y < vertDiv; y++) {
@@ -240,24 +246,24 @@ int ScanSegment::segment(const cv::Mat& mat, const cv::Rect& bounds, cv::Mat* la
 		adjTolerance = adjTolerance * adjTolerance;
 
 		// create neighbour vector
-		std::vector<int> indexSeedVec(concurrentthreads);
-		std::iota(indexSeedVec.begin(), indexSeedVec.end(), 0);
+		std::vector<int> indexNeighbourVec(effectivethreads);
+		std::iota(indexNeighbourVec.begin(), indexNeighbourVec.end(), 0);
 
 		// create process vector
-		std::vector<std::pair<int, int>> indexProcessVec(concurrentthreads);
-		int processDiv = indexSize / concurrentthreads;
+		std::vector<std::pair<int, int>> indexProcessVec(processthreads);
+		int processDiv = indexSize / processthreads;
 		int processCurrent = 0;
-		for (int i = 0; i < concurrentthreads - 1; i++) {
+		for (int i = 0; i < processthreads - 1; i++) {
 			indexProcessVec[i] = std::make_pair(processCurrent, processCurrent + processDiv);
 			processCurrent += processDiv;
 		}
-		indexProcessVec[concurrentthreads - 1] = std::make_pair(processCurrent, indexSize);
+		indexProcessVec[processthreads - 1] = std::make_pair(processCurrent, indexSize);
 
 		// copy mat to buffer
 		memcpy(labBuffer, labMat.data, indexSize * sizeof(cv::Vec3b));
 
 		// start at the center of the rect, then run through the remainder
-		std::for_each(std::execution::par_unseq, indexSeedVec.begin(), indexSeedVec.end(), [&](int& v) {
+		std::for_each(std::execution::par_unseq, indexNeighbourVec.begin(), indexNeighbourVec.end(), [&](int& v) {
 			cv::Rect seedRect = seedRects[v];
 			cv::Size boundsSize = bounds.size();
 			for (int y = seedRect.y; y < seedRect.y + seedRect.height; y++) {
@@ -341,7 +347,7 @@ int ScanSegment::segment(const cv::Mat& mat, const cv::Rect& bounds, cv::Mat* la
 	if (labBuffer != NULL) {
 		free(labBuffer);
 	}
-	for (int i = 0; i < neighbourCount; i++) {
+	for (int i = 0; i < effectivethreads; i++) {
 		if (offsetVec[i] != NULL) {
 			free(offsetVec[i]);
 		}
