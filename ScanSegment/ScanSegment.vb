@@ -1,4 +1,4 @@
-﻿Imports OfficeOpenXml
+Imports OfficeOpenXml
 Imports Emgu.CV
 Imports System.Collections.Concurrent
 Imports System.Runtime.InteropServices
@@ -12,6 +12,7 @@ Module ScanSegment
     Private Const Resolution096 As Single = 96
     Private Const SaveDirectory As String = "\ScanSegment\"
     Private Const SuperpixelDirectory As String = "Segmented\"
+    Private Const GroundTruthImagesDirectory As String = "\GroundTruthImages\"
     Private Const GroundTruthDirectory As String = "\GroundTruth\"
     Private Const GroundTruthBoundariesDirectory As String = "\GroundTruthBoundaries\"
     Private Const GroundTruthSegmentationDirectory As String = "\GroundTruthSegmentation\"
@@ -31,6 +32,7 @@ Module ScanSegment
     Private Const ComplexityStr As String = "Complexity"
     Private Const AltComplexityStr As String = "AltComplexity"
     Private Const NoiseStr As String = "Noise"
+    Private Const FailureStr As String = "Failure"
     Private Const NumStr As String = "No"
     Private Const TypeStr As String = "Type"
     Private Const SuperpixelsStr As String = "Superpixels"
@@ -45,12 +47,15 @@ Module ScanSegment
     Private Const NoiseMul As Integer = 1000
     Private Const AltWidth As Integer = 3848
     Private Const AltHeight As Integer = 2568
+    Private Const ResetInterval As Integer = 100
     Private SuperpixelList As New List(Of Integer)({100, 200, 300, 400, 500, 600})
-    Private m_LUT As New List(Of Matrix(Of Byte))({Nothing, Nothing, Nothing, Nothing})
-    Private m_SingleProcess As List(Of SegmentType) = {SegmentType.ScanSegment}.ToList
-    Private m_CombineProcess As List(Of SegmentType) = {SegmentType.DSFH, SegmentType.DSERS, SegmentType.DSCRS}.ToList ' process simultaneously (slow processes)
-    Private ComplexityList As New List(Of Single)({0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0, 8.0})
-    Private NoiseList As New List(Of Single)({0.0, 0.025, 0.05, 0.075, 0.1, 0.125, 0.15, 0.175, 0.2})
+    Private ReadOnly m_LUT As New List(Of Matrix(Of Byte))({Nothing, Nothing, Nothing, Nothing})
+    Private ReadOnly m_SingleProcess As List(Of SegmentType) = {SegmentType.ScanSegment}.ToList
+    Private ReadOnly m_CombineProcess As List(Of SegmentType) = {SegmentType.DSFH, SegmentType.DSERS, SegmentType.DSCRS}.ToList ' process simultaneously (slow processes)
+    Private ReadOnly m_ExcludeProcess As List(Of SegmentType) = {SegmentType.SEEDS}.ToList
+    Private ReadOnly ComplexityList As New List(Of Single)({0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0, 8.0})
+    Private ReadOnly NoiseList As New List(Of Single)({0.0, 0.025, 0.05, 0.075, 0.1, 0.125, 0.15, 0.175, 0.2})
+    Private ReadOnly ScanSegmentThread As New List(Of Integer)({1, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20})
 
     Sub Main()
         Dim oFolderBrowserDialog As New FolderBrowserDialog
@@ -69,6 +74,8 @@ Module ScanSegment
             Dim oStartDate As Date = Date.Now
             Dim iCurrentProcessing As Integer = 0
             Dim iProcessingSteps As Integer = 0
+            Dim iProcessingStepsExt As Integer = 0
+            Dim oMutex As New System.Threading.Mutex
 
             If oImageFiles.Count > 0 Then
 #Region "Directories"
@@ -97,21 +104,35 @@ Module ScanSegment
                     IO.Directory.CreateDirectory(oFolderBrowserDialog.SelectedPath + NoiseSegmentationImagesDirectory)
                 End If
                 For Each oType In [Enum].GetValues(GetType(SegmentType))
-                    Dim sTypeName As String = [Enum].GetName(GetType(SegmentType), oType)
-                    If Not IO.Directory.Exists(oFolderBrowserDialog.SelectedPath + SaveDirectory + SuperpixelDirectory + sTypeName) Then
-                        IO.Directory.CreateDirectory(oFolderBrowserDialog.SelectedPath + SaveDirectory + SuperpixelDirectory + sTypeName)
-                    End If
-                    If Not IO.Directory.Exists(oFolderBrowserDialog.SelectedPath + OutlineImagesDirectory + sTypeName) Then
-                        IO.Directory.CreateDirectory(oFolderBrowserDialog.SelectedPath + OutlineImagesDirectory + sTypeName)
-                    End If
-                    If Not IO.Directory.Exists(oFolderBrowserDialog.SelectedPath + SegmentationImagesDirectory + sTypeName) Then
-                        IO.Directory.CreateDirectory(oFolderBrowserDialog.SelectedPath + SegmentationImagesDirectory + sTypeName)
-                    End If
-                    If Not IO.Directory.Exists(oFolderBrowserDialog.SelectedPath + NoiseOutlineImagesDirectory + sTypeName) Then
-                        IO.Directory.CreateDirectory(oFolderBrowserDialog.SelectedPath + NoiseOutlineImagesDirectory + sTypeName)
-                    End If
-                    If Not IO.Directory.Exists(oFolderBrowserDialog.SelectedPath + NoiseSegmentationImagesDirectory + sTypeName) Then
-                        IO.Directory.CreateDirectory(oFolderBrowserDialog.SelectedPath + NoiseSegmentationImagesDirectory + sTypeName)
+                    If Not m_ExcludeProcess.Contains(oType) Then
+                        Dim iProcessorCount As Integer = 1
+                        If oType = SegmentType.ScanSegment Then
+                            iProcessorCount = ScanSegmentThread.Count
+                        End If
+                        For iProcessorIndex = 0 To iProcessorCount - 1
+                            Dim sTypeName As String = [Enum].GetName(GetType(SegmentType), oType)
+                            Dim iProcessor As Integer = -1
+                            If oType = SegmentType.ScanSegment Then
+                                iProcessor = ScanSegmentThread(iProcessorIndex)
+                                sTypeName += "_" + iProcessor.ToString().PadLeft(2, "0")
+                            End If
+
+                            If Not IO.Directory.Exists(oFolderBrowserDialog.SelectedPath + SaveDirectory + SuperpixelDirectory + sTypeName) Then
+                                IO.Directory.CreateDirectory(oFolderBrowserDialog.SelectedPath + SaveDirectory + SuperpixelDirectory + sTypeName)
+                            End If
+                            If Not IO.Directory.Exists(oFolderBrowserDialog.SelectedPath + OutlineImagesDirectory + sTypeName) Then
+                                IO.Directory.CreateDirectory(oFolderBrowserDialog.SelectedPath + OutlineImagesDirectory + sTypeName)
+                            End If
+                            If Not IO.Directory.Exists(oFolderBrowserDialog.SelectedPath + SegmentationImagesDirectory + sTypeName) Then
+                                IO.Directory.CreateDirectory(oFolderBrowserDialog.SelectedPath + SegmentationImagesDirectory + sTypeName)
+                            End If
+                            If Not IO.Directory.Exists(oFolderBrowserDialog.SelectedPath + NoiseOutlineImagesDirectory + sTypeName) Then
+                                IO.Directory.CreateDirectory(oFolderBrowserDialog.SelectedPath + NoiseOutlineImagesDirectory + sTypeName)
+                            End If
+                            If Not IO.Directory.Exists(oFolderBrowserDialog.SelectedPath + NoiseSegmentationImagesDirectory + sTypeName) Then
+                                IO.Directory.CreateDirectory(oFolderBrowserDialog.SelectedPath + NoiseSegmentationImagesDirectory + sTypeName)
+                            End If
+                        Next
                     End If
                 Next
 #End Region
@@ -128,13 +149,26 @@ Module ScanSegment
                 ' run combined tasks
                 If m_CombineProcess.Count > 0 Then
                     Dim oCombineActionList As New List(Of Tuple(Of Action(Of Object), Object))
-                    Dim oCombineAction As Action(Of Object) = Sub(oParam As Tuple(Of List(Of IO.FileInfo), List(Of Integer), SegmentType, Date, String))
-                                                                  ProcessCombinedMultiplier(oParam.Item1, oParam.Item2, oParam.Item3, oParam.Item4, oParam.Item5)
+                    Dim oCombineAction As Action(Of Object) = Sub(oParam As Tuple(Of List(Of IO.FileInfo), List(Of Integer), SegmentType, Integer, Date, String))
+                                                                  ProcessCombinedMultiplier(oParam.Item1, oParam.Item2, oParam.Item3, oParam.Item4, oParam.Item5, oParam.Item6)
                                                               End Sub
 
                     For Each oType In m_CombineProcess
-                        oCombineActionList.Add(New Tuple(Of Action(Of Object), Object)(oCombineAction, New Tuple(Of List(Of IO.FileInfo), List(Of Integer), SegmentType, Date, String) _
-                                                                                           (oImageFiles, oLargeMul, oType, oStartDate, oFolderBrowserDialog.SelectedPath)))
+                        If Not m_ExcludeProcess.Contains(oType) Then
+                            Dim iProcessorCount As Integer = 1
+                            If oType = SegmentType.ScanSegment Then
+                                iProcessorCount = ScanSegmentThread.Count
+                            End If
+                            For iProcessorIndex = 0 To iProcessorCount - 1
+                                Dim iProcessor As Integer = -1
+                                If oType = SegmentType.ScanSegment Then
+                                    iProcessor = ScanSegmentThread(iProcessorIndex)
+                                End If
+
+                                oCombineActionList.Add(New Tuple(Of Action(Of Object), Object)(oCombineAction, New Tuple(Of List(Of IO.FileInfo), List(Of Integer), SegmentType, Integer, Date, String) _
+                                                                                               (oImageFiles, oLargeMul, oType, iProcessor, oStartDate, oFolderBrowserDialog.SelectedPath)))
+                            Next
+                        End If
                     Next
 
                     initScan()
@@ -144,62 +178,118 @@ Module ScanSegment
 
                 ' run sequential tasks
                 For Each oType In [Enum].GetValues(GetType(SegmentType))
-                    initScan()
-                    ProcessCombinedMultiplier(oImageFiles, oLargeMul, oType, oStartDate, oFolderBrowserDialog.SelectedPath)
-                    exitScan()
+                    If Not m_ExcludeProcess.Contains(oType) Then
+                        Dim iProcessorCount As Integer = 1
+                        If oType = SegmentType.ScanSegment Then
+                            iProcessorCount = ScanSegmentThread.Count
+                        End If
+                        For iProcessorIndex = 0 To iProcessorCount - 1
+                            Dim iProcessor As Integer = -1
+                            If oType = SegmentType.ScanSegment Then
+                                iProcessor = ScanSegmentThread(iProcessorIndex)
+                            End If
+
+                            initScan()
+                            ProcessCombinedMultiplier(oImageFiles, oLargeMul, oType, iProcessor, oStartDate, oFolderBrowserDialog.SelectedPath)
+                            exitScan()
+                        Next
+                    End If
                 Next
 
                 ' loading multiplers
                 Dim oMultiplier As New Result
                 For Each oImageFile In oImageFiles
                     If Not oMultiplier.Results.ContainsKey(oImageFile.Name) Then
-                        oMultiplier.Results.Add(oImageFile.Name, New Dictionary(Of Integer, Dictionary(Of SegmentType, Integer)))
+                        oMultiplier.Results.Add(oImageFile.Name, New Dictionary(Of Integer, Dictionary(Of SegmentType, Dictionary(Of Integer, Integer))))
                     End If
                     For Each iSuperpixel In SuperpixelList
                         If Not oMultiplier.Results(oImageFile.Name).ContainsKey(iSuperpixel) Then
-                            oMultiplier.Results(oImageFile.Name).Add(iSuperpixel, New Dictionary(Of SegmentType, Integer))
+                            oMultiplier.Results(oImageFile.Name).Add(iSuperpixel, New Dictionary(Of SegmentType, Dictionary(Of Integer, Integer)))
                         End If
                         For Each oType In [Enum].GetValues(GetType(SegmentType))
-                            If Not oMultiplier.Results(oImageFile.Name)(iSuperpixel).ContainsKey(oType) Then
-                                oMultiplier.Results(oImageFile.Name)(iSuperpixel).Add(oType, 0)
+                            If Not m_ExcludeProcess.Contains(oType) Then
+                                If Not oMultiplier.Results(oImageFile.Name)(iSuperpixel).ContainsKey(oType) Then
+                                    oMultiplier.Results(oImageFile.Name)(iSuperpixel).Add(oType, New Dictionary(Of Integer, Integer))
+                                End If
+
+                                Dim iProcessorCount As Integer = 1
+                                If oType = SegmentType.ScanSegment Then
+                                    iProcessorCount = ScanSegmentThread.Count
+                                End If
+                                For iProcessorIndex = 0 To iProcessorCount - 1
+                                    Dim iProcessor As Integer = -1
+                                    If oType = SegmentType.ScanSegment Then
+                                        iProcessor = ScanSegmentThread(iProcessorIndex)
+                                    End If
+
+                                    If Not oMultiplier.Results(oImageFile.Name)(iSuperpixel)(oType).ContainsKey(iProcessor) Then
+                                        oMultiplier.Results(oImageFile.Name)(iSuperpixel)(oType).Add(iProcessor, 0)
+                                    End If
+                                Next
                             End If
                         Next
                     Next
                 Next
 
-                iProcessingSteps = oImageFiles.Count * SuperpixelList.Count * [Enum].GetValues(GetType(SegmentType)).GetLength(0)
+                iProcessingSteps = oImageFiles.Count * SuperpixelList.Count * ([Enum].GetValues(GetType(SegmentType)).GetLength(0) - m_ExcludeProcess.Count)
+                iProcessingStepsExt = oImageFiles.Count * SuperpixelList.Count * ([Enum].GetValues(GetType(SegmentType)).GetLength(0) - m_ExcludeProcess.Count - 1 + ScanSegmentThread.Count)
                 iCurrentProcessing = 0
 
+                Dim iProcessMultiplier As Integer = 0
                 initScan()
                 For Each oType In [Enum].GetValues(GetType(SegmentType))
-                    Dim sTypeName As String = [Enum].GetName(GetType(SegmentType), oType)
-                    Dim sTypeMultiplierFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "Multipliers_" + sTypeName + ".xml"
-                    If IO.File.Exists(sTypeMultiplierFile) Then
-                        Dim oTypeMultiplier As Result = DeserializeDataContractFile(Of Result)(sTypeMultiplierFile, Result.GetKnownTypes, , , False)
-                        Dim bTypeFileChanged As Boolean = False
-                        For Each oKeyValue1 In oMultiplier.Results
-                            If Not oTypeMultiplier.Results.ContainsKey(oKeyValue1.Key) Then
-                                oTypeMultiplier.Results.Add(oKeyValue1.Key, New Dictionary(Of Integer, Dictionary(Of SegmentType, Integer)))
-                                bTypeFileChanged = True
+                    If Not m_ExcludeProcess.Contains(oType) Then
+                        Dim iProcessorCount As Integer = 1
+                        If oType = SegmentType.ScanSegment Then
+                            iProcessorCount = ScanSegmentThread.Count
+                        End If
+                        For iProcessorIndex = 0 To iProcessorCount - 1
+                            Dim sTypeName As String = [Enum].GetName(GetType(SegmentType), oType)
+                            Dim iProcessor As Integer = -1
+                            If oType = SegmentType.ScanSegment Then
+                                iProcessor = ScanSegmentThread(iProcessorIndex)
+                                sTypeName += "_" + iProcessor.ToString().PadLeft(2, "0")
                             End If
-                            For Each oKeyValue2 In oKeyValue1.Value
-                                If Not oTypeMultiplier.Results(oKeyValue1.Key).ContainsKey(oKeyValue2.Key) Then
-                                    oTypeMultiplier.Results(oKeyValue1.Key).Add(oKeyValue2.Key, New Dictionary(Of SegmentType, Integer))
-                                    bTypeFileChanged = True
-                                End If
-                                For Each oKeyValue3 In oKeyValue2.Value
-                                    If oKeyValue3.Key = oType Then
-                                        If (Not oTypeMultiplier.Results(oKeyValue1.Key)(oKeyValue2.Key).ContainsKey(oKeyValue3.Key)) OrElse oTypeMultiplier.Results(oKeyValue1.Key)(oKeyValue2.Key)(oKeyValue3.Key) = 0 Then
+
+                            Dim sTypeMultiplierFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "Multipliers_" + sTypeName + ".xml"
+                            If IO.File.Exists(sTypeMultiplierFile) Then
+                                Dim oTypeMultiplier As Result = DeserializeDataContractFile(Of Result)(sTypeMultiplierFile, Result.GetKnownTypes, , , False)
+                                Dim bTypeFileChanged As Boolean = False
+                                For Each oKeyValue1 In oMultiplier.Results
+                                    If Not oTypeMultiplier.Results.ContainsKey(oKeyValue1.Key) Then
+                                        oTypeMultiplier.Results.Add(oKeyValue1.Key, New Dictionary(Of Integer, Dictionary(Of SegmentType, Dictionary(Of Integer, Integer))))
+                                        bTypeFileChanged = True
+                                    End If
+                                    For Each oKeyValue2 In oKeyValue1.Value
+                                        If Not oTypeMultiplier.Results(oKeyValue1.Key).ContainsKey(oKeyValue2.Key) Then
+                                            oTypeMultiplier.Results(oKeyValue1.Key).Add(oKeyValue2.Key, New Dictionary(Of SegmentType, Dictionary(Of Integer, Integer)))
+                                            bTypeFileChanged = True
+                                        End If
+                                        If Not oTypeMultiplier.Results(oKeyValue1.Key)(oKeyValue2.Key).ContainsKey(oType) Then
+                                            oTypeMultiplier.Results(oKeyValue1.Key)(oKeyValue2.Key).Add(oType, New Dictionary(Of Integer, Integer))
+                                            bTypeFileChanged = True
+                                        End If
+                                        If (Not oTypeMultiplier.Results(oKeyValue1.Key)(oKeyValue2.Key)(oType).ContainsKey(iProcessor)) OrElse oTypeMultiplier.Results(oKeyValue1.Key)(oKeyValue2.Key)(oType)(iProcessor) = 0 Then
                                             Dim oFileName As String = oFolderBrowserDialog.SelectedPath + "\" + oKeyValue1.Key
                                             Using oBitmap As New System.Drawing.Bitmap(oFileName)
                                                 Using oMatrix As Matrix(Of Byte) = BitmapToMatrix(oBitmap)
                                                     Dim oBounds As New System.Drawing.Rectangle(0, 0, oMatrix.Width, oMatrix.Height)
                                                     Dim iSegments As Integer = 0
-                                                    Dim iMul As Integer = GetMultiplier(oLargeMul, oBounds, oMatrix, oKeyValue2.Key, oType, iSegments)
-                                                    If oTypeMultiplier.Results(oKeyValue1.Key)(oKeyValue2.Key).ContainsKey(oType) Then
-                                                        oTypeMultiplier.Results(oKeyValue1.Key)(oKeyValue2.Key)(oType) = iMul
+
+                                                    ' reset periodically to clear
+                                                    oMutex.WaitOne()
+                                                    Dim iCurrentProcessMultiplier As Integer = System.Threading.Interlocked.Increment(iProcessMultiplier)
+                                                    If iCurrentProcessMultiplier > 0 AndAlso iCurrentProcessMultiplier Mod ResetInterval = 0 Then
+                                                        exitScan()
+                                                        initScan()
+                                                    End If
+                                                    oMutex.ReleaseMutex()
+
+                                                    Dim iMul As Integer = GetMultiplier(oLargeMul, oBounds, oMatrix, oKeyValue2.Key, oType, iProcessor, iSegments)
+                                                    If oTypeMultiplier.Results(oKeyValue1.Key)(oKeyValue2.Key)(oType).ContainsKey(iProcessor) Then
+                                                        oTypeMultiplier.Results(oKeyValue1.Key)(oKeyValue2.Key)(oType)(iProcessor) = iMul
                                                     Else
-                                                        oTypeMultiplier.Results(oKeyValue1.Key)(oKeyValue2.Key).Add(oType, iMul)
+                                                        oTypeMultiplier.Results(oKeyValue1.Key)(oKeyValue2.Key)(oType).Add(iProcessor, iMul)
                                                     End If
 
                                                     Console.WriteLine(GetElapsed(oStartDate) + " Multiplier " + oKeyValue1.Key + ", " + oKeyValue2.Key.ToString + ", " + sTypeName + " Updated")
@@ -207,17 +297,17 @@ Module ScanSegment
                                             End Using
                                             bTypeFileChanged = True
                                         End If
-                                    End If
+                                    Next
                                 Next
-                            Next
-                        Next
 
-                        ' save file again if changed
-                        If bTypeFileChanged Then
-                            IO.File.Delete(sTypeMultiplierFile)
-                            SerializeDataContractFile(sTypeMultiplierFile, oTypeMultiplier, Result.GetKnownTypes, , , False)
-                            Console.WriteLine(GetElapsed(oStartDate) + " Multiplier " + sTypeName + " Updated")
-                        End If
+                                ' save file again if changed
+                                If bTypeFileChanged Then
+                                    IO.File.Delete(sTypeMultiplierFile)
+                                    SerializeDataContractFile(sTypeMultiplierFile, oTypeMultiplier, Result.GetKnownTypes, , , False)
+                                    Console.WriteLine(GetElapsed(oStartDate) + " Multiplier " + sTypeName + " Updated")
+                                End If
+                            End If
+                        Next
                     End If
                 Next
                 exitScan()
@@ -227,34 +317,53 @@ Module ScanSegment
                 Dim bInitialised As Boolean = True
 #Region "Check Multipliers"
                 For Each oType In [Enum].GetValues(GetType(SegmentType))
-                    Dim sTypeName As String = [Enum].GetName(GetType(SegmentType), oType)
-                    Dim sTypeMultiplierFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "Multipliers_" + sTypeName + ".xml"
-                    If IO.File.Exists(sTypeMultiplierFile) Then
-                        Dim oTypeMultiplier As Result = DeserializeDataContractFile(Of Result)(sTypeMultiplierFile, Result.GetKnownTypes, , , False)
-                        For Each oImageFile In oImageFiles
-                            If bInitialised AndAlso oTypeMultiplier.Results.ContainsKey(oImageFile.Name) Then
-                                For Each iSuperpixel In SuperpixelList
-                                    If bInitialised AndAlso oTypeMultiplier.Results(oImageFile.Name).ContainsKey(iSuperpixel) Then
-                                        If bInitialised AndAlso oTypeMultiplier.Results(oImageFile.Name)(iSuperpixel).ContainsKey(oType) Then
-                                            Dim iMul As Integer = oTypeMultiplier.Results(oImageFile.Name)(iSuperpixel)(oType)
-                                            If bInitialised AndAlso iMul > 0 Then
-                                                oMultiplier.Results(oImageFile.Name)(iSuperpixel)(oType) = iMul
+                    If Not m_ExcludeProcess.Contains(oType) Then
+                        Dim iProcessorCount As Integer = 1
+                        If oType = SegmentType.ScanSegment Then
+                            iProcessorCount = ScanSegmentThread.Count
+                        End If
+                        For iProcessorIndex = 0 To iProcessorCount - 1
+                            Dim sTypeName As String = [Enum].GetName(GetType(SegmentType), oType)
+                            Dim iProcessor As Integer = -1
+                            If oType = SegmentType.ScanSegment Then
+                                iProcessor = ScanSegmentThread(iProcessorIndex)
+                                sTypeName += "_" + iProcessor.ToString().PadLeft(2, "0")
+                            End If
+
+                            Dim sTypeMultiplierFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "Multipliers_" + sTypeName + ".xml"
+                            If IO.File.Exists(sTypeMultiplierFile) Then
+                                Dim oTypeMultiplier As Result = DeserializeDataContractFile(Of Result)(sTypeMultiplierFile, Result.GetKnownTypes, , , False)
+                                For Each oImageFile In oImageFiles
+                                    If bInitialised AndAlso oTypeMultiplier.Results.ContainsKey(oImageFile.Name) Then
+                                        For Each iSuperpixel In SuperpixelList
+                                            If bInitialised AndAlso oTypeMultiplier.Results(oImageFile.Name).ContainsKey(iSuperpixel) Then
+                                                If bInitialised AndAlso oTypeMultiplier.Results(oImageFile.Name)(iSuperpixel).ContainsKey(oType) Then
+                                                    If bInitialised AndAlso oTypeMultiplier.Results(oImageFile.Name)(iSuperpixel)(oType).ContainsKey(iProcessor) Then
+                                                        Dim iMul As Integer = oTypeMultiplier.Results(oImageFile.Name)(iSuperpixel)(oType)(iProcessor)
+                                                        If bInitialised AndAlso iMul > 0 Then
+                                                            oMultiplier.Results(oImageFile.Name)(iSuperpixel)(oType)(iProcessor) = iMul
+                                                        Else
+                                                            bInitialised = False
+                                                            Exit For
+                                                        End If
+                                                    Else
+                                                        bInitialised = False
+                                                        Exit For
+                                                    End If
+                                                Else
+                                                    bInitialised = False
+                                                    Exit For
+                                                End If
                                             Else
                                                 bInitialised = False
                                                 Exit For
                                             End If
-                                        Else
-                                            bInitialised = False
-                                            Exit For
-                                        End If
+                                        Next
                                     Else
                                         bInitialised = False
                                         Exit For
                                     End If
                                 Next
-                            Else
-                                bInitialised = False
-                                Exit For
                             End If
                         Next
                     End If
@@ -265,25 +374,27 @@ Module ScanSegment
                     ' dry run through all routines to start up and initialise
                     initScan()
 #Region "Warmup"
-                    Console.WriteLine(GetElapsed(oStartDate) + " Pretest Warmup")
-                    Dim oImageFileW As IO.FileInfo = oImageFiles.First
-                    Using oBitmap As New System.Drawing.Bitmap(oImageFileW.FullName)
-                        Using oMatrix As Matrix(Of Byte) = BitmapToMatrix(oBitmap)
-                            Dim oBounds As New System.Drawing.Rectangle(0, 0, oMatrix.Width, oMatrix.Height)
-                            Dim oLabels As Matrix(Of Integer) = Nothing
-                            Dim iSegments As Integer = 0
+                        Console.WriteLine(GetElapsed(oStartDate) + " Pretest Warmup")
+                        Dim oImageFileW As IO.FileInfo = oImageFiles.First
+                        Using oBitmap As New System.Drawing.Bitmap(oImageFileW.FullName)
+                            Using oMatrix As Matrix(Of Byte) = BitmapToMatrix(oBitmap)
+                                Dim oBounds As New System.Drawing.Rectangle(0, 0, oMatrix.Width, oMatrix.Height)
+                                Dim oLabels As Matrix(Of Integer) = Nothing
+                                Dim iSegments As Integer = 0
 
-                            For Each iSuperpixel In SuperpixelList
-                                For Each oType In [Enum].GetValues(GetType(SegmentType))
-                                    Segment(oBounds, oMatrix, oLabels, iSuperpixel, 1.0, True, oType, iSegments)
-                                    If MatrixNotNothing(oLabels) Then
-                                        oLabels.Dispose()
-                                        oLabels = Nothing
-                                    End If
+                                For Each iSuperpixel In SuperpixelList
+                                    For Each oType In [Enum].GetValues(GetType(SegmentType))
+                                        If Not m_ExcludeProcess.Contains(oType) Then
+                                            Segment(oBounds, oMatrix, oLabels, iSuperpixel, 1.0, True, oType, -1, iSegments)
+                                            If MatrixNotNothing(oLabels) Then
+                                                oLabels.Dispose()
+                                                oLabels = Nothing
+                                            End If
+                                        End If
+                                    Next
                                 Next
-                            Next
+                            End Using
                         End Using
-                    End Using
 #End Region
 
                     ' timings for all processes
@@ -292,115 +403,132 @@ Module ScanSegment
 
                     iCurrentProcessing = 0
                     For Each oType In [Enum].GetValues(GetType(SegmentType))
-                        Dim sTypeName As String = [Enum].GetName(GetType(SegmentType), oType)
-
-                        Dim sTimingsFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "Timings_" + sTypeName + ".xml"
-                        Dim oTimings As Result = Nothing
-
-                        If IO.File.Exists(sTimingsFile) Then
-                            oTimings = DeserializeDataContractFile(Of Result)(sTimingsFile, Result.GetKnownTypes, , , False)
-                        Else
-                            oTimings = New Result
-                        End If
-
-                        Dim sSegmentsFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "Segments_" + sTypeName + ".xml"
-                        Dim oSegments As Result = Nothing
-
-                        If IO.File.Exists(sSegmentsFile) Then
-                            oSegments = DeserializeDataContractFile(Of Result)(sSegmentsFile, Result.GetKnownTypes, , , False)
-                        Else
-                            oSegments = New Result
-                        End If
-
-                        For i = 0 To oImageFiles.Count - 1
-                            Dim oImageFile As IO.FileInfo = oImageFiles(i)
-
-                            If oMultiplier.Results.ContainsKey(oImageFile.Name) Then
-                                Using oBitmap As New System.Drawing.Bitmap(oImageFile.FullName)
-                                    Using oMatrix As Matrix(Of Byte) = BitmapToMatrix(oBitmap)
-                                        Dim oBounds As New System.Drawing.Rectangle(0, 0, oMatrix.Width, oMatrix.Height)
-                                        Dim oLabels As Matrix(Of Integer) = Nothing
-                                        Dim iSegments As Integer = 0
-
-                                        If Not oTimings.Results.ContainsKey(oImageFile.Name) Then
-                                            oTimings.Results.Add(oImageFile.Name, New Dictionary(Of Integer, Dictionary(Of SegmentType, Integer)))
-                                        End If
-                                        If Not oSegments.Results.ContainsKey(oImageFile.Name) Then
-                                            oSegments.Results.Add(oImageFile.Name, New Dictionary(Of Integer, Dictionary(Of SegmentType, Integer)))
-                                        End If
-                                        For Each iSuperpixel In SuperpixelList
-                                            If oMultiplier.Results(oImageFile.Name).ContainsKey(iSuperpixel) Then
-                                                If Not oTimings.Results(oImageFile.Name).ContainsKey(iSuperpixel) Then
-                                                    oTimings.Results(oImageFile.Name).Add(iSuperpixel, New Dictionary(Of SegmentType, Integer))
-                                                End If
-                                                If Not oSegments.Results(oImageFile.Name).ContainsKey(iSuperpixel) Then
-                                                    oSegments.Results(oImageFile.Name).Add(iSuperpixel, New Dictionary(Of SegmentType, Integer))
-                                                End If
-                                                If ((Not oTimings.Results(oImageFile.Name)(iSuperpixel).ContainsKey(oType)) OrElse oTimings.Results(oImageFile.Name)(iSuperpixel)(oType) = 0 OrElse (Not oSegments.Results(oImageFile.Name)(iSuperpixel).ContainsKey(oType)) OrElse oSegments.Results(oImageFile.Name)(iSuperpixel)(oType) = 0) AndAlso oMultiplier.Results(oImageFile.Name)(iSuperpixel).ContainsKey(oType) Then
-                                                    Dim iMul As Integer = oMultiplier.Results(oImageFile.Name)(iSuperpixel)(oType)
-                                                    Dim fCurrentMul As Single = CSng(iMul) / CSng(MulFactor)
-
-                                                    Dim iDuration As Integer = Segment(oBounds, oMatrix, oLabels, iSuperpixel, fCurrentMul, True, oType, iSegments)
-                                                    If oTimings.Results(oImageFile.Name)(iSuperpixel).ContainsKey(oType) Then
-                                                        oTimings.Results(oImageFile.Name)(iSuperpixel)(oType) = iDuration
-                                                    Else
-                                                        oTimings.Results(oImageFile.Name)(iSuperpixel).Add(oType, iDuration)
-                                                    End If
-                                                    If oSegments.Results(oImageFile.Name)(iSuperpixel).ContainsKey(oType) Then
-                                                        oSegments.Results(oImageFile.Name)(iSuperpixel)(oType) = iSegments
-                                                    Else
-                                                        oSegments.Results(oImageFile.Name)(iSuperpixel).Add(oType, iSegments)
-                                                    End If
-
-                                                    If MatrixNotNothing(oLabels) Then
-                                                        Dim sMeanImageFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + SuperpixelDirectory + sTypeName + "\SegmentMean_" + Left(oImageFile.Name, Len(oImageFile.Name) - Len(oImageFile.Extension)) + "_" + sTypeName + "_" + iSuperpixel.ToString + "_" + iSegments.ToString + "_[" + iDuration.ToString + "].tif"
-                                                        If Not IO.File.Exists(sMeanImageFile) Then
-                                                            Using oLabelByte As Matrix(Of Byte) = ConvertLabels(oLabels, oMatrix, LabelType.Mean)
-                                                                SaveMatrix(sMeanImageFile, oLabelByte)
-                                                            End Using
-                                                        End If
-
-                                                        Dim sOutlineImageFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + SuperpixelDirectory + sTypeName + "\SegmentOutline_" + Left(oImageFile.Name, Len(oImageFile.Name) - Len(oImageFile.Extension)) + "_" + sTypeName + "_" + iSuperpixel.ToString + "_" + iSegments.ToString + "_[" + iDuration.ToString + "].tif"
-                                                        If Not IO.File.Exists(sOutlineImageFile) Then
-                                                            Using oLabelByte As Matrix(Of Byte) = ConvertLabels(oLabels, oMatrix, LabelType.Outline)
-                                                                SaveMatrix(sOutlineImageFile, oLabelByte)
-                                                            End Using
-                                                        End If
-
-                                                        Dim sOutlineOnlyImageFile As String = oFolderBrowserDialog.SelectedPath + OutlineImagesDirectory + sTypeName + "\" + Left(oImageFile.Name, Len(oImageFile.Name) - Len(oImageFile.Extension)) + "[" + sTypeName + "][" + iSuperpixel.ToString + "].tif"
-                                                        If Not IO.File.Exists(sOutlineOnlyImageFile) Then
-                                                            Using oLabelByte As Matrix(Of Byte) = ConvertLabels(oLabels, oMatrix, LabelType.OutlineOnly)
-                                                                SaveMatrix(sOutlineOnlyImageFile, oLabelByte)
-                                                            End Using
-                                                        End If
-
-                                                        Dim sSegmentationImageFile As String = oFolderBrowserDialog.SelectedPath + SegmentationImagesDirectory + sTypeName + "\" + Left(oImageFile.Name, Len(oImageFile.Name) - Len(oImageFile.Extension)) + "[" + sTypeName + "][" + iSuperpixel.ToString + "].tif"
-                                                        If Not IO.File.Exists(sSegmentationImageFile) Then
-                                                            Using oUShortLabels As Matrix(Of UShort) = oLabels.Convert(Of UShort)
-                                                                Using oLabelByte As Matrix(Of Byte) = ConvertUShortLabels(oUShortLabels)
-                                                                    SaveMatrix(sSegmentationImageFile, oLabelByte)
-                                                                End Using
-                                                            End Using
-                                                        End If
-
-                                                        oLabels.Dispose()
-                                                        oLabels = Nothing
-                                                    End If
-                                                End If
-
-                                                iCurrentProcessing += 1
-                                                Console.WriteLine(GetElapsed(oStartDate) + " Processing " + iCurrentProcessing.ToString + "/" + iProcessingSteps.ToString)
-                                            End If
-                                        Next
-                                    End Using
-                                End Using
+                        If Not m_ExcludeProcess.Contains(oType) Then
+                            Dim iProcessorCount As Integer = 1
+                            If oType = SegmentType.ScanSegment Then
+                                iProcessorCount = ScanSegmentThread.Count
                             End If
-                        Next
+                            For iProcessorIndex = 0 To iProcessorCount - 1
+                                Dim sTypeName As String = [Enum].GetName(GetType(SegmentType), oType)
+                                Dim iProcessor As Integer = -1
+                                If oType = SegmentType.ScanSegment Then
+                                    iProcessor = ScanSegmentThread(iProcessorIndex)
+                                    sTypeName += "_" + iProcessor.ToString().PadLeft(2, "0")
+                                End If
 
-                        SerializeDataContractFile(sTimingsFile, oTimings, Result.GetKnownTypes, , , False)
-                        SerializeDataContractFile(sSegmentsFile, oSegments, Result.GetKnownTypes, , , False)
+                                Dim sTimingsFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "Timings_" + sTypeName + ".xml"
+                                Dim sSegmentsFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "Segments_" + sTypeName + ".xml"
+                                Dim oTimings As Result = Nothing
+                                Dim oSegments As Result = Nothing
 
-                        Console.WriteLine(GetElapsed(oStartDate) + " Timings " + sTypeName + " Saved")
+                                If IO.File.Exists(sTimingsFile) AndAlso IO.File.Exists(sSegmentsFile) Then
+                                    oTimings = DeserializeDataContractFile(Of Result)(sTimingsFile, Result.GetKnownTypes, , , False)
+                                    oSegments = DeserializeDataContractFile(Of Result)(sSegmentsFile, Result.GetKnownTypes, , , False)
+                                    iCurrentProcessing += oImageFiles.Count * SuperpixelList.Count
+                                Else
+                                    oTimings = New Result
+                                    oSegments = New Result
+
+                                    For i = 0 To oImageFiles.Count - 1
+                                        Dim oImageFile As IO.FileInfo = oImageFiles(i)
+
+                                        If oMultiplier.Results.ContainsKey(oImageFile.Name) Then
+                                            Using oBitmap As New System.Drawing.Bitmap(oImageFile.FullName)
+                                                Using oMatrix As Matrix(Of Byte) = BitmapToMatrix(oBitmap)
+                                                    Dim oBounds As New System.Drawing.Rectangle(0, 0, oMatrix.Width, oMatrix.Height)
+                                                    Dim oLabels As Matrix(Of Integer) = Nothing
+                                                    Dim iSegments As Integer = 0
+
+                                                    If Not oTimings.Results.ContainsKey(oImageFile.Name) Then
+                                                        oTimings.Results.Add(oImageFile.Name, New Dictionary(Of Integer, Dictionary(Of SegmentType, Dictionary(Of Integer, Integer))))
+                                                    End If
+                                                    If Not oSegments.Results.ContainsKey(oImageFile.Name) Then
+                                                        oSegments.Results.Add(oImageFile.Name, New Dictionary(Of Integer, Dictionary(Of SegmentType, Dictionary(Of Integer, Integer))))
+                                                    End If
+                                                    For Each iSuperpixel In SuperpixelList
+                                                        If oMultiplier.Results(oImageFile.Name).ContainsKey(iSuperpixel) Then
+                                                            If Not oTimings.Results(oImageFile.Name).ContainsKey(iSuperpixel) Then
+                                                                oTimings.Results(oImageFile.Name).Add(iSuperpixel, New Dictionary(Of SegmentType, Dictionary(Of Integer, Integer)))
+                                                            End If
+                                                            If Not oSegments.Results(oImageFile.Name).ContainsKey(iSuperpixel) Then
+                                                                oSegments.Results(oImageFile.Name).Add(iSuperpixel, New Dictionary(Of SegmentType, Dictionary(Of Integer, Integer)))
+                                                            End If
+
+                                                            If Not oTimings.Results(oImageFile.Name)(iSuperpixel).ContainsKey(oType) Then
+                                                                oTimings.Results(oImageFile.Name)(iSuperpixel).Add(oType, New Dictionary(Of Integer, Integer))
+                                                            End If
+                                                            If Not oSegments.Results(oImageFile.Name)(iSuperpixel).ContainsKey(oType) Then
+                                                                oSegments.Results(oImageFile.Name)(iSuperpixel).Add(oType, New Dictionary(Of Integer, Integer))
+                                                            End If
+
+                                                            If ((Not oTimings.Results(oImageFile.Name)(iSuperpixel)(oType).ContainsKey(iProcessor)) OrElse oTimings.Results(oImageFile.Name)(iSuperpixel)(oType)(iProcessor) = 0 OrElse (Not oSegments.Results(oImageFile.Name)(iSuperpixel)(oType).ContainsKey(iProcessor)) OrElse oSegments.Results(oImageFile.Name)(iSuperpixel)(oType)(iProcessor) = 0) AndAlso oMultiplier.Results(oImageFile.Name)(iSuperpixel)(oType).ContainsKey(iProcessor) Then
+                                                                Dim iMul As Integer = oMultiplier.Results(oImageFile.Name)(iSuperpixel)(oType)(iProcessor)
+                                                                Dim fCurrentMul As Single = CSng(iMul) / CSng(MulFactor)
+
+                                                                Dim iDuration As Integer = Segment(oBounds, oMatrix, oLabels, iSuperpixel, fCurrentMul, True, oType, iProcessor, iSegments)
+                                                                If oTimings.Results(oImageFile.Name)(iSuperpixel)(oType).ContainsKey(iProcessor) Then
+                                                                    oTimings.Results(oImageFile.Name)(iSuperpixel)(oType)(iProcessor) = iDuration
+                                                                Else
+                                                                    oTimings.Results(oImageFile.Name)(iSuperpixel)(oType).Add(iProcessor, iDuration)
+                                                                End If
+                                                                If oSegments.Results(oImageFile.Name)(iSuperpixel)(oType).ContainsKey(iProcessor) Then
+                                                                    oSegments.Results(oImageFile.Name)(iSuperpixel)(oType)(iProcessor) = iSegments
+                                                                Else
+                                                                    oSegments.Results(oImageFile.Name)(iSuperpixel)(oType).Add(iProcessor, iSegments)
+                                                                End If
+
+                                                                If MatrixNotNothing(oLabels) Then
+                                                                    Dim sMeanImageFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + SuperpixelDirectory + sTypeName + "\SegmentMean_" + Left(oImageFile.Name, Len(oImageFile.Name) - Len(oImageFile.Extension)) + "_" + sTypeName + "_" + iSuperpixel.ToString + "_" + iSegments.ToString + "_[" + iDuration.ToString + "].tif"
+                                                                    If Not IO.File.Exists(sMeanImageFile) Then
+                                                                        Using oLabelByte As Matrix(Of Byte) = ConvertLabels(oLabels, oMatrix, LabelType.Mean)
+                                                                            SaveMatrix(sMeanImageFile, oLabelByte)
+                                                                        End Using
+                                                                    End If
+
+                                                                    Dim sOutlineImageFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + SuperpixelDirectory + sTypeName + "\SegmentOutline_" + Left(oImageFile.Name, Len(oImageFile.Name) - Len(oImageFile.Extension)) + "_" + sTypeName + "_" + iSuperpixel.ToString + "_" + iSegments.ToString + "_[" + iDuration.ToString + "].tif"
+                                                                    If Not IO.File.Exists(sOutlineImageFile) Then
+                                                                        Using oLabelByte As Matrix(Of Byte) = ConvertLabels(oLabels, oMatrix, LabelType.Outline)
+                                                                            SaveMatrix(sOutlineImageFile, oLabelByte)
+                                                                        End Using
+                                                                    End If
+
+                                                                    Dim sOutlineOnlyImageFile As String = oFolderBrowserDialog.SelectedPath + OutlineImagesDirectory + sTypeName + "\" + Left(oImageFile.Name, Len(oImageFile.Name) - Len(oImageFile.Extension)) + "[" + sTypeName + "][" + iSuperpixel.ToString + "].tif"
+                                                                    If Not IO.File.Exists(sOutlineOnlyImageFile) Then
+                                                                        Using oLabelByte As Matrix(Of Byte) = ConvertLabels(oLabels, oMatrix, LabelType.OutlineOnly)
+                                                                            SaveMatrix(sOutlineOnlyImageFile, oLabelByte)
+                                                                        End Using
+                                                                    End If
+
+                                                                    Dim sSegmentationImageFile As String = oFolderBrowserDialog.SelectedPath + SegmentationImagesDirectory + sTypeName + "\" + Left(oImageFile.Name, Len(oImageFile.Name) - Len(oImageFile.Extension)) + "[" + sTypeName + "][" + iSuperpixel.ToString + "].tif"
+                                                                    If Not IO.File.Exists(sSegmentationImageFile) Then
+                                                                        Using oUShortLabels As Matrix(Of UShort) = oLabels.Convert(Of UShort)
+                                                                            Using oLabelByte As Matrix(Of Byte) = ConvertUShortLabels(oUShortLabels)
+                                                                                SaveMatrix(sSegmentationImageFile, oLabelByte)
+                                                                            End Using
+                                                                        End Using
+                                                                    End If
+
+                                                                    oLabels.Dispose()
+                                                                    oLabels = Nothing
+                                                                End If
+                                                            End If
+
+                                                            iCurrentProcessing += 1
+                                                            Console.WriteLine(GetElapsed(oStartDate) + " Processing " + iCurrentProcessing.ToString + "/" + iProcessingStepsExt.ToString)
+                                                        End If
+                                                    Next
+                                                End Using
+                                            End Using
+                                        End If
+                                    Next
+
+                                    SerializeDataContractFile(sTimingsFile, oTimings, Result.GetKnownTypes, , , False)
+                                    SerializeDataContractFile(sSegmentsFile, oSegments, Result.GetKnownTypes, , , False)
+
+                                    Console.WriteLine(GetElapsed(oStartDate) + " Timings " + sTypeName + " Saved")
+                                End If
+                            Next
+                        End If
                     Next
 #End Region
 
@@ -409,68 +537,80 @@ Module ScanSegment
                     Console.WriteLine(GetElapsed(oStartDate) + " Complexity Start")
 
                     iCurrentProcessing = 0
-                    iProcessingSteps = Math.Min(oImageFiles.Count, ComplexityCount) * ComplexityList.Count * [Enum].GetValues(GetType(SegmentType)).GetLength(0)
+                    iProcessingStepsExt = Math.Min(oImageFiles.Count, ComplexityCount) * ComplexityList.Count * ([Enum].GetValues(GetType(SegmentType)).GetLength(0) - m_ExcludeProcess.Count - 1 + ScanSegmentThread.Count)
                     For Each oType In [Enum].GetValues(GetType(SegmentType))
-                        If oType <> SegmentType.DSFH Then
-                            Dim sTypeName As String = [Enum].GetName(GetType(SegmentType), oType)
+                        If Not m_ExcludeProcess.Contains(oType) Then
+                            If oType <> SegmentType.DSFH Then
+                                Dim iProcessorCount As Integer = 1
+                                If oType = SegmentType.ScanSegment Then
+                                    iProcessorCount = ScanSegmentThread.Count
+                                End If
+                                For iProcessorIndex = 0 To iProcessorCount - 1
+                                    Dim sTypeName As String = [Enum].GetName(GetType(SegmentType), oType)
+                                    Dim iProcessor As Integer = -1
+                                    If oType = SegmentType.ScanSegment Then
+                                        iProcessor = ScanSegmentThread(iProcessorIndex)
+                                        sTypeName += "_" + iProcessor.ToString().PadLeft(2, "0")
+                                    End If
 
-                            Dim sComplexityFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "Complexity_" + sTypeName + ".xml"
-                            Dim oComplexity As Result = Nothing
+                                    Dim sComplexityFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "Complexity_" + sTypeName + ".xml"
+                                    If Not IO.File.Exists(sComplexityFile) Then
+                                        Dim oComplexity As New Result
+                                        For i = 0 To Math.Min(oImageFiles.Count, ComplexityCount) - 1
+                                            Dim oImageFile As IO.FileInfo = oImageFiles(i)
 
-                            If IO.File.Exists(sComplexityFile) Then
-                                oComplexity = DeserializeDataContractFile(Of Result)(sComplexityFile, Result.GetKnownTypes, , , False)
-                            Else
-                                oComplexity = New Result
-                            End If
-
-                            For i = 0 To Math.Min(oImageFiles.Count, ComplexityCount) - 1
-                                Dim oImageFile As IO.FileInfo = oImageFiles(i)
-
-                                Using oBitmap As New System.Drawing.Bitmap(oImageFile.FullName)
-                                    Using oMatrix As Matrix(Of Byte) = BitmapToMatrix(oBitmap)
-                                        If Not oComplexity.Results.ContainsKey(oImageFile.Name) Then
-                                            oComplexity.Results.Add(oImageFile.Name, New Dictionary(Of Integer, Dictionary(Of SegmentType, Integer)))
-                                        End If
-                                        For Each fComplexity In ComplexityList
-                                            Dim iScaledWidth As Integer = CInt(CSng(oMatrix.Width) * fComplexity)
-                                            Dim iScaledHeight As Integer = CInt(CSng(oMatrix.Height) * fComplexity)
-                                            Dim oScaledBounds As New System.Drawing.Rectangle(0, 0, iScaledWidth, iScaledHeight)
-
-                                            Using oScaledMatrix As New Matrix(Of Byte)(iScaledHeight, iScaledWidth, oMatrix.NumberOfChannels)
-                                                CvInvoke.Resize(oMatrix, oScaledMatrix, oScaledMatrix.Size, 0, 0, CvEnum.Inter.Lanczos4)
-
-                                                Dim iComplexity As Integer = CInt(fComplexity * CSng(ComplexityMul))
-                                                If Not oComplexity.Results(oImageFile.Name).ContainsKey(iComplexity) Then
-                                                    oComplexity.Results(oImageFile.Name).Add(iComplexity, New Dictionary(Of SegmentType, Integer))
-                                                End If
-                                                If (Not oComplexity.Results(oImageFile.Name)(iComplexity).ContainsKey(oType)) OrElse oComplexity.Results(oImageFile.Name)(iComplexity)(oType) = 0 Then
-                                                    Dim oLabels As Matrix(Of Integer) = Nothing
-                                                    Dim iSegments As Integer = 0
-
-                                                    Dim iDuration As Integer = Segment(oScaledBounds, oScaledMatrix, oLabels, ComplexitySuperpixels, 1.0, True, oType, iSegments)
-                                                    If oComplexity.Results(oImageFile.Name)(iComplexity).ContainsKey(oType) Then
-                                                        oComplexity.Results(oImageFile.Name)(iComplexity)(oType) = iDuration
-                                                    Else
-                                                        oComplexity.Results(oImageFile.Name)(iComplexity).Add(oType, iDuration)
+                                            Using oBitmap As New System.Drawing.Bitmap(oImageFile.FullName)
+                                                Using oMatrix As Matrix(Of Byte) = BitmapToMatrix(oBitmap)
+                                                    If Not oComplexity.Results.ContainsKey(oImageFile.Name) Then
+                                                        oComplexity.Results.Add(oImageFile.Name, New Dictionary(Of Integer, Dictionary(Of SegmentType, Dictionary(Of Integer, Integer))))
                                                     End If
+                                                    For Each fComplexity In ComplexityList
+                                                        Dim iScaledWidth As Integer = CInt(CSng(oMatrix.Width) * fComplexity)
+                                                        Dim iScaledHeight As Integer = CInt(CSng(oMatrix.Height) * fComplexity)
+                                                        Dim oScaledBounds As New System.Drawing.Rectangle(0, 0, iScaledWidth, iScaledHeight)
 
-                                                    If MatrixNotNothing(oLabels) Then
-                                                        oLabels.Dispose()
-                                                        oLabels = Nothing
-                                                    End If
-                                                End If
+                                                        Using oScaledMatrix As New Matrix(Of Byte)(iScaledHeight, iScaledWidth, oMatrix.NumberOfChannels)
+                                                            CvInvoke.Resize(oMatrix, oScaledMatrix, oScaledMatrix.Size, 0, 0, CvEnum.Inter.Lanczos4)
+
+                                                            Dim iComplexity As Integer = CInt(fComplexity * CSng(ComplexityMul))
+                                                            If Not oComplexity.Results(oImageFile.Name).ContainsKey(iComplexity) Then
+                                                                oComplexity.Results(oImageFile.Name).Add(iComplexity, New Dictionary(Of SegmentType, Dictionary(Of Integer, Integer)))
+                                                            End If
+                                                            If Not oComplexity.Results(oImageFile.Name)(iComplexity).ContainsKey(oType) Then
+                                                                oComplexity.Results(oImageFile.Name)(iComplexity).Add(oType, New Dictionary(Of Integer, Integer))
+                                                            End If
+
+                                                            If (Not oComplexity.Results(oImageFile.Name)(iComplexity)(oType).ContainsKey(iProcessor)) OrElse oComplexity.Results(oImageFile.Name)(iComplexity)(oType)(iProcessor) = 0 Then
+                                                                Dim oLabels As Matrix(Of Integer) = Nothing
+                                                                Dim iSegments As Integer = 0
+
+                                                                Dim iDuration As Integer = Segment(oScaledBounds, oScaledMatrix, oLabels, ComplexitySuperpixels, 1.0, True, oType, -1, iSegments)
+                                                                If oComplexity.Results(oImageFile.Name)(iComplexity)(oType).ContainsKey(iProcessor) Then
+                                                                    oComplexity.Results(oImageFile.Name)(iComplexity)(oType)(iProcessor) = iDuration
+                                                                Else
+                                                                    oComplexity.Results(oImageFile.Name)(iComplexity)(oType).Add(iProcessor, iDuration)
+                                                                End If
+
+                                                                If MatrixNotNothing(oLabels) Then
+                                                                    oLabels.Dispose()
+                                                                    oLabels = Nothing
+                                                                End If
+                                                            End If
+                                                        End Using
+
+                                                        iCurrentProcessing += 1
+                                                        Console.WriteLine(GetElapsed(oStartDate) + " Processing " + iCurrentProcessing.ToString + "/" + iProcessingStepsExt.ToString)
+                                                    Next
+                                                End Using
                                             End Using
-
-                                            iCurrentProcessing += 1
-                                            Console.WriteLine(GetElapsed(oStartDate) + " Processing " + iCurrentProcessing.ToString + "/" + iProcessingSteps.ToString)
                                         Next
-                                    End Using
-                                End Using
-                            Next
 
-                            SerializeDataContractFile(sComplexityFile, oComplexity, Result.GetKnownTypes, , , False)
+                                        SerializeDataContractFile(sComplexityFile, oComplexity, Result.GetKnownTypes, , , False)
 
-                            Console.WriteLine(GetElapsed(oStartDate) + " Complexity " + sTypeName + " Saved")
+                                        Console.WriteLine(GetElapsed(oStartDate) + " Complexity " + sTypeName + " Saved")
+                                    End If
+                                Next
+                            End If
                         End If
                     Next
 #End Region
@@ -480,72 +620,85 @@ Module ScanSegment
                     Console.WriteLine(GetElapsed(oStartDate) + " Alternate Complexity Start")
 
                     iCurrentProcessing = 0
-                    iProcessingSteps = oUnsplashImageFiles.Count * ComplexityList.Count * [Enum].GetValues(GetType(SegmentType)).GetLength(0)
+                    iProcessingStepsExt = oUnsplashImageFiles.Count * ComplexityList.Count * ([Enum].GetValues(GetType(SegmentType)).GetLength(0) - m_ExcludeProcess.Count - 1 + ScanSegmentThread.Count)
                     For Each oType In [Enum].GetValues(GetType(SegmentType))
-                        If oType <> SegmentType.DSFH Then
-                            Dim sTypeName As String = [Enum].GetName(GetType(SegmentType), oType)
+                        If Not m_ExcludeProcess.Contains(oType) Then
+                            If oType <> SegmentType.DSFH Then
+                                Dim iProcessorCount As Integer = 1
+                                If oType = SegmentType.ScanSegment Then
+                                    iProcessorCount = ScanSegmentThread.Count
+                                End If
+                                For iProcessorIndex = 0 To iProcessorCount - 1
+                                    Dim sTypeName As String = [Enum].GetName(GetType(SegmentType), oType)
+                                    Dim iProcessor As Integer = -1
+                                    If oType = SegmentType.ScanSegment Then
+                                        iProcessor = ScanSegmentThread(iProcessorIndex)
+                                        sTypeName += "_" + iProcessor.ToString().PadLeft(2, "0")
+                                    End If
 
-                            Dim sComplexityFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "AltComplexity_" + sTypeName + ".xml"
-                            Dim oComplexity As Result = Nothing
+                                    Dim sComplexityFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "AltComplexity_" + sTypeName + ".xml"
+                                    If Not IO.File.Exists(sComplexityFile) Then
+                                        Dim oComplexity As New Result
 
-                            If IO.File.Exists(sComplexityFile) Then
-                                oComplexity = DeserializeDataContractFile(Of Result)(sComplexityFile, Result.GetKnownTypes, , , False)
-                            Else
-                                oComplexity = New Result
-                            End If
+                                        For i = 0 To oUnsplashImageFiles.Count - 1
+                                            Dim oImageFile As IO.FileInfo = oUnsplashImageFiles(i)
 
-                            For i = 0 To oUnsplashImageFiles.Count - 1
-                                Dim oImageFile As IO.FileInfo = oUnsplashImageFiles(i)
+                                            Using oBitmap As New System.Drawing.Bitmap(oImageFile.FullName)
+                                                Using oAltMatrix As Matrix(Of Byte) = BitmapToMatrix(oBitmap)
+                                                    Using oMatrix As New Matrix(Of Byte)(AltHeight, AltWidth, 3)
+                                                        CvInvoke.Resize(oAltMatrix, oMatrix, oMatrix.Size, 0, 0, CvEnum.Inter.Lanczos4)
 
-                                Using oBitmap As New System.Drawing.Bitmap(oImageFile.FullName)
-                                    Using oAltMatrix As Matrix(Of Byte) = BitmapToMatrix(oBitmap)
-                                        Using oMatrix As New Matrix(Of Byte)(AltHeight, AltWidth, 3)
-                                            CvInvoke.Resize(oAltMatrix, oMatrix, oMatrix.Size, 0, 0, CvEnum.Inter.Lanczos4)
-
-                                            If Not oComplexity.Results.ContainsKey(oImageFile.Name) Then
-                                                oComplexity.Results.Add(oImageFile.Name, New Dictionary(Of Integer, Dictionary(Of SegmentType, Integer)))
-                                            End If
-                                            For Each fAltComplexity In ComplexityList
-                                                Dim fComplexity As Single = fAltComplexity / 8.0
-                                                Dim iScaledWidth As Integer = CInt(CSng(oMatrix.Width) * fComplexity)
-                                                Dim iScaledHeight As Integer = CInt(CSng(oMatrix.Height) * fComplexity)
-                                                Dim oScaledBounds As New System.Drawing.Rectangle(0, 0, iScaledWidth, iScaledHeight)
-
-                                                iCurrentProcessing += 1
-
-                                                Using oScaledMatrix As New Matrix(Of Byte)(iScaledHeight, iScaledWidth, oMatrix.NumberOfChannels)
-                                                    CvInvoke.Resize(oMatrix, oScaledMatrix, oScaledMatrix.Size, 0, 0, CvEnum.Inter.Lanczos4)
-
-                                                    Dim iComplexity As Integer = CInt(fComplexity * CSng(ComplexityMul))
-                                                    If Not oComplexity.Results(oImageFile.Name).ContainsKey(iComplexity) Then
-                                                        oComplexity.Results(oImageFile.Name).Add(iComplexity, New Dictionary(Of SegmentType, Integer))
-                                                    End If
-                                                    If (Not oComplexity.Results(oImageFile.Name)(iComplexity).ContainsKey(oType)) OrElse oComplexity.Results(oImageFile.Name)(iComplexity)(oType) = 0 Then
-                                                        Dim oLabels As Matrix(Of Integer) = Nothing
-                                                        Dim iSegments As Integer = 0
-
-                                                        If Not oComplexity.Results(oImageFile.Name)(iComplexity).ContainsKey(oType) Then
-                                                            Dim iDuration As Integer = Segment(oScaledBounds, oScaledMatrix, oLabels, ComplexitySuperpixels, 1.0, True, oType, iSegments)
-                                                            oComplexity.Results(oImageFile.Name)(iComplexity).Add(oType, iDuration)
+                                                        If Not oComplexity.Results.ContainsKey(oImageFile.Name) Then
+                                                            oComplexity.Results.Add(oImageFile.Name, New Dictionary(Of Integer, Dictionary(Of SegmentType, Dictionary(Of Integer, Integer))))
                                                         End If
+                                                        For Each fAltComplexity In ComplexityList
+                                                            Dim fComplexity As Single = fAltComplexity / 8.0
+                                                            Dim iScaledWidth As Integer = CInt(CSng(oMatrix.Width) * fComplexity)
+                                                            Dim iScaledHeight As Integer = CInt(CSng(oMatrix.Height) * fComplexity)
+                                                            Dim oScaledBounds As New System.Drawing.Rectangle(0, 0, iScaledWidth, iScaledHeight)
 
-                                                        If MatrixNotNothing(oLabels) Then
-                                                            oLabels.Dispose()
-                                                            oLabels = Nothing
-                                                        End If
-                                                    End If
+                                                            iCurrentProcessing += 1
+
+                                                            Using oScaledMatrix As New Matrix(Of Byte)(iScaledHeight, iScaledWidth, oMatrix.NumberOfChannels)
+                                                                CvInvoke.Resize(oMatrix, oScaledMatrix, oScaledMatrix.Size, 0, 0, CvEnum.Inter.Lanczos4)
+
+                                                                Dim iComplexity As Integer = CInt(fComplexity * CSng(ComplexityMul))
+                                                                If Not oComplexity.Results(oImageFile.Name).ContainsKey(iComplexity) Then
+                                                                    oComplexity.Results(oImageFile.Name).Add(iComplexity, New Dictionary(Of SegmentType, Dictionary(Of Integer, Integer)))
+                                                                End If
+                                                                If Not oComplexity.Results(oImageFile.Name)(iComplexity).ContainsKey(oType) Then
+                                                                    oComplexity.Results(oImageFile.Name)(iComplexity).Add(oType, New Dictionary(Of Integer, Integer))
+                                                                End If
+
+                                                                If (Not oComplexity.Results(oImageFile.Name)(iComplexity)(oType).ContainsKey(iProcessor)) OrElse oComplexity.Results(oImageFile.Name)(iComplexity)(oType)(iProcessor) = 0 Then
+                                                                    Dim oLabels As Matrix(Of Integer) = Nothing
+                                                                    Dim iSegments As Integer = 0
+
+                                                                    If Not oComplexity.Results(oImageFile.Name)(iComplexity)(oType).ContainsKey(iProcessor) Then
+                                                                        Dim iDuration As Integer = Segment(oScaledBounds, oScaledMatrix, oLabels, ComplexitySuperpixels, 1.0, True, oType, -1, iSegments)
+                                                                        oComplexity.Results(oImageFile.Name)(iComplexity)(oType).Add(iProcessor, iDuration)
+                                                                    End If
+
+                                                                    If MatrixNotNothing(oLabels) Then
+                                                                        oLabels.Dispose()
+                                                                        oLabels = Nothing
+                                                                    End If
+                                                                End If
+                                                            End Using
+
+                                                            Console.WriteLine(GetElapsed(oStartDate) + " Processing " + iCurrentProcessing.ToString + "/" + iProcessingStepsExt.ToString)
+                                                        Next
+                                                    End Using
                                                 End Using
+                                            End Using
+                                        Next
 
-                                                Console.WriteLine(GetElapsed(oStartDate) + " Processing " + iCurrentProcessing.ToString + "/" + iProcessingSteps.ToString)
-                                            Next
-                                        End Using
-                                    End Using
-                                End Using
-                            Next
+                                        SerializeDataContractFile(sComplexityFile, oComplexity, Result.GetKnownTypes, , , False)
 
-                            SerializeDataContractFile(sComplexityFile, oComplexity, Result.GetKnownTypes, , , False)
-
-                            Console.WriteLine(GetElapsed(oStartDate) + " Alternate Complexity " + sTypeName + " Saved")
+                                        Console.WriteLine(GetElapsed(oStartDate) + " Alternate Complexity " + sTypeName + " Saved")
+                                    End If
+                                Next
+                            End If
                         End If
                     Next
 #End Region
@@ -555,68 +708,104 @@ Module ScanSegment
                     Console.WriteLine(GetElapsed(oStartDate) + " Noise Start")
 
                     iCurrentProcessing = 0
-                    iProcessingSteps = oImageFiles.Count * NoiseList.Count * [Enum].GetValues(GetType(SegmentType)).GetLength(0)
+                    iProcessingStepsExt = oImageFiles.Count * NoiseList.Count * ([Enum].GetValues(GetType(SegmentType)).GetLength(0) - m_ExcludeProcess.Count - 1 + ScanSegmentThread.Count)
+                    Dim oCurrentBitmap As System.Drawing.Bitmap = Nothing
+                    Dim sCurrentBitmapName As String = String.Empty
                     For Each oType In [Enum].GetValues(GetType(SegmentType))
-                        Dim sTypeName As String = [Enum].GetName(GetType(SegmentType), oType)
+                        If Not m_ExcludeProcess.Contains(oType) Then
+                            Dim iProcessorCount As Integer = 1
+                            If oType = SegmentType.ScanSegment Then
+                                iProcessorCount = ScanSegmentThread.Count
+                            End If
+                            For iProcessorIndex = 0 To iProcessorCount - 1
+                                Dim sTypeName As String = [Enum].GetName(GetType(SegmentType), oType)
+                                Dim iProcessor As Integer = -1
+                                If oType = SegmentType.ScanSegment Then
+                                    iProcessor = ScanSegmentThread(iProcessorIndex)
+                                    sTypeName += "_" + iProcessor.ToString().PadLeft(2, "0")
+                                End If
 
-                        For i = 0 To oImageFiles.Count - 1
-                            Dim oImageFile As IO.FileInfo = oImageFiles(i)
+                                For i = 0 To oImageFiles.Count - 1
+                                    Dim oImageFile As IO.FileInfo = oImageFiles(i)
 
-                            Using oBitmap As New System.Drawing.Bitmap(oImageFile.FullName)
-                                Dim oLabels As Matrix(Of Integer) = Nothing
-                                Dim iSegments As Integer = 0
+                                    Dim oLabels As Matrix(Of Integer) = Nothing
+                                    Dim iSegments As Integer = 0
 
-                                For Each fNoise In NoiseList
-                                    Dim iNoise As Integer = CInt(fNoise * CSng(NoiseMul))
-                                    Dim sOutlineOnlyImageFile As String = oFolderBrowserDialog.SelectedPath + NoiseOutlineImagesDirectory + sTypeName + "\" + Left(oImageFile.Name, Len(oImageFile.Name) - Len(oImageFile.Extension)) + "[" + sTypeName + "][" + iNoise.ToString + "].tif"
-                                    Dim sSegmentationImageFile As String = oFolderBrowserDialog.SelectedPath + NoiseSegmentationImagesDirectory + sTypeName + "\" + Left(oImageFile.Name, Len(oImageFile.Name) - Len(oImageFile.Extension)) + "[" + sTypeName + "][" + iNoise.ToString + "].tif"
-                                    If (Not IO.File.Exists(sOutlineOnlyImageFile)) OrElse (Not IO.File.Exists(sSegmentationImageFile)) Then
-                                        ' apply salt and pepper noise
-                                        Using oNoiseBitmap As System.Drawing.Bitmap = oBitmap.Clone
-                                            Dim oSaltAndPepperNoise As New Accord.Imaging.Filters.SaltAndPepperNoise(fNoise * 100)
-                                            If iNoise > 0 Then
-                                                oSaltAndPepperNoise.ApplyInPlace(oNoiseBitmap)
-                                            End If
-                                            Using oMatrix As Matrix(Of Byte) = BitmapToMatrix(oNoiseBitmap)
-                                                Dim oBounds As New System.Drawing.Rectangle(0, 0, oMatrix.Width, oMatrix.Height)
-                                                Segment(oBounds, oMatrix, oLabels, ComplexitySuperpixels, 1.0, True, oType, iSegments)
+                                    For Each fNoise In NoiseList
+                                        Dim iNoise As Integer = CInt(fNoise * CSng(NoiseMul))
+                                        Dim sOutlineOnlyImageFile As String = oFolderBrowserDialog.SelectedPath + NoiseOutlineImagesDirectory + sTypeName + "\" + Left(oImageFile.Name, Len(oImageFile.Name) - Len(oImageFile.Extension)) + "[" + sTypeName + "][" + iNoise.ToString + "].tif"
+                                        Dim sSegmentationImageFile As String = oFolderBrowserDialog.SelectedPath + NoiseSegmentationImagesDirectory + sTypeName + "\" + Left(oImageFile.Name, Len(oImageFile.Name) - Len(oImageFile.Extension)) + "[" + sTypeName + "][" + iNoise.ToString + "].tif"
+                                        If (Not IO.File.Exists(sOutlineOnlyImageFile)) OrElse (Not IO.File.Exists(sSegmentationImageFile)) Then
+                                            If sCurrentBitmapName <> oImageFile.FullName Then
+                                                sCurrentBitmapName = oImageFile.FullName
 
-                                                If MatrixNotNothing(oLabels) Then
-                                                    If IO.File.Exists(sOutlineOnlyImageFile) Then
-                                                        IO.File.Delete(sOutlineOnlyImageFile)
-                                                    End If
-                                                    Using oLabelByte As Matrix(Of Byte) = ConvertLabels(oLabels, oMatrix, LabelType.OutlineOnly)
-                                                        SaveMatrix(sOutlineOnlyImageFile, oLabelByte)
-                                                    End Using
-
-                                                    If IO.File.Exists(sSegmentationImageFile) Then
-                                                        IO.File.Delete(sSegmentationImageFile)
-                                                    End If
-                                                    Using oUShortLabels As Matrix(Of UShort) = oLabels.Convert(Of UShort)
-                                                        Using oLabelByte As Matrix(Of Byte) = ConvertUShortLabels(oUShortLabels)
-                                                            SaveMatrix(sSegmentationImageFile, oLabelByte)
-                                                        End Using
-                                                    End Using
-
-                                                    oLabels.Dispose()
-                                                    oLabels = Nothing
+                                                If Not IsNothing(oCurrentBitmap) Then
+                                                    oCurrentBitmap.Dispose()
+                                                    oCurrentBitmap = Nothing
                                                 End If
-                                            End Using
-                                        End Using
-                                    End If
+                                                oCurrentBitmap = New System.Drawing.Bitmap(oImageFile.FullName)
+                                            End If
 
-                                    iCurrentProcessing += 1
-                                    Console.WriteLine(GetElapsed(oStartDate) + " Processing " + iCurrentProcessing.ToString + "/" + iProcessingSteps.ToString)
+                                            ' apply salt and pepper noise
+                                            Using oNoiseBitmap As System.Drawing.Bitmap = oCurrentBitmap.Clone
+                                                Dim oSaltAndPepperNoise As New Accord.Imaging.Filters.SaltAndPepperNoise(fNoise * 100)
+                                                If iNoise > 0 Then
+                                                    oSaltAndPepperNoise.ApplyInPlace(oNoiseBitmap)
+                                                End If
+                                                Using oMatrix As Matrix(Of Byte) = BitmapToMatrix(oNoiseBitmap)
+                                                    Dim oBounds As New System.Drawing.Rectangle(0, 0, oMatrix.Width, oMatrix.Height)
+                                                    Segment(oBounds, oMatrix, oLabels, ComplexitySuperpixels, 1.0, True, oType, -1, iSegments)
+
+                                                    If MatrixNotNothing(oLabels) Then
+                                                        If IO.File.Exists(sOutlineOnlyImageFile) Then
+                                                            IO.File.Delete(sOutlineOnlyImageFile)
+                                                        End If
+                                                        Using oLabelByte As Matrix(Of Byte) = ConvertLabels(oLabels, oMatrix, LabelType.OutlineOnly)
+                                                            SaveMatrix(sOutlineOnlyImageFile, oLabelByte)
+                                                        End Using
+
+                                                        If IO.File.Exists(sSegmentationImageFile) Then
+                                                            IO.File.Delete(sSegmentationImageFile)
+                                                        End If
+                                                        Using oUShortLabels As Matrix(Of UShort) = oLabels.Convert(Of UShort)
+                                                            Using oLabelByte As Matrix(Of Byte) = ConvertUShortLabels(oUShortLabels)
+                                                                SaveMatrix(sSegmentationImageFile, oLabelByte)
+                                                            End Using
+                                                        End Using
+
+                                                        oLabels.Dispose()
+                                                        oLabels = Nothing
+                                                    End If
+                                                End Using
+                                            End Using
+
+                                            iCurrentProcessing += 1
+                                            Console.WriteLine(GetElapsed(oStartDate) + " Processing " + iCurrentProcessing.ToString + "/" + iProcessingStepsExt.ToString)
+                                        Else
+                                            iCurrentProcessing += 1
+                                        End If
+                                    Next
                                 Next
-                            End Using
-                        Next
+                            Next
+                        End If
                     Next
+                    If sCurrentBitmapName <> String.Empty Then
+                        sCurrentBitmapName = String.Empty
+                    End If
+                    If Not IsNothing(oCurrentBitmap) Then
+                        oCurrentBitmap.Dispose()
+                        oCurrentBitmap = Nothing
+                    End If
+
 #End Region
                     exitScan()
 
                     ' extract ground truth from mat files
 #Region "Ground Truth"
+                    Dim oDatasetType As DatasetType = DatasetType.Unknown
                     If IO.Directory.Exists(oFolderBrowserDialog.SelectedPath + GroundTruthDirectory) Then
+                        ' processing for BDS500
+                        oDatasetType = DatasetType.BSD
                         Dim oGroundTruthDirectoryInfo As New IO.DirectoryInfo(oFolderBrowserDialog.SelectedPath + GroundTruthDirectory)
                         Dim oGroundTruthFiles As New List(Of IO.FileInfo)
                         oGroundTruthFiles.AddRange(oGroundTruthDirectoryInfo.EnumerateFiles("*.mat", IO.SearchOption.AllDirectories))
@@ -675,6 +864,79 @@ Module ScanSegment
                                 Console.WriteLine(GetElapsed(oStartDate) + " Ground Truth " + iCurrentProcessingGT.ToString + "/" + iProcessingStepsGT.ToString + ": " + sFileString)
                             Next
                         End If
+                    ElseIf IO.Directory.Exists(oFolderBrowserDialog.SelectedPath + GroundTruthImagesDirectory) Then
+                        ' processing for Cornell
+                        oDatasetType = DatasetType.iCogseg
+                        Dim oGroundTruthImagesDirectoryInfo As New IO.DirectoryInfo(oFolderBrowserDialog.SelectedPath + GroundTruthImagesDirectory)
+                        Dim oGroundTruthImagesFiles As New List(Of IO.FileInfo)
+                        oGroundTruthImagesFiles.AddRange(oGroundTruthImagesDirectoryInfo.EnumerateFiles("*.png", IO.SearchOption.AllDirectories))
+                        If oGroundTruthImagesFiles.Count > 0 Then
+                            For Each oGroundTruthImageFile In oGroundTruthImagesFiles
+                                Dim sFileString As String = Left(oGroundTruthImageFile.Name, Len(oGroundTruthImageFile.Name) - Len(oGroundTruthImageFile.Extension))
+                                Dim sGroundTruthBoundariesName As String = oFolderBrowserDialog.SelectedPath + GroundTruthBoundariesDirectory + sFileString + ".tif"
+                                Dim sGroundTruthSegmentationName As String = oFolderBrowserDialog.SelectedPath + GroundTruthSegmentationDirectory + sFileString + ".tif"
+                                If (Not IO.File.Exists(sGroundTruthBoundariesName)) OrElse (Not IO.File.Exists(sGroundTruthSegmentationName)) Then
+                                    Using oGroundTruthImageMatrix As Matrix(Of Byte) = LoadMatrix(oGroundTruthImageFile.FullName)
+                                        ' pad border by 1 pixel
+                                        Using oExpandedGroundTruthImageMatrix As New Matrix(Of Byte)(oGroundTruthImageMatrix.Rows + 2, oGroundTruthImageMatrix.Cols + 2, oGroundTruthImageMatrix.NumberOfChannels)
+                                            CvInvoke.CopyMakeBorder(oGroundTruthImageMatrix, oExpandedGroundTruthImageMatrix, 1, 1, 1, 1, CvEnum.BorderType.Replicate)
+
+                                            Using oContours As New Util.VectorOfVectorOfPoint
+                                                Using oHierarchy As New Mat
+                                                    CvInvoke.FindContours(oExpandedGroundTruthImageMatrix, oContours, oHierarchy, CvEnum.RetrType.List, CvEnum.ChainApproxMethod.ChainApproxSimple)
+                                                    oExpandedGroundTruthImageMatrix.SetZero()
+                                                    CvInvoke.DrawContours(oExpandedGroundTruthImageMatrix, oContours, -1, New [Structure].MCvScalar(255), 1, CvEnum.LineType.FourConnected)
+                                                End Using
+                                            End Using
+
+                                            ' copy back to original matrix and save
+                                            oExpandedGroundTruthImageMatrix.GetSubRect(New System.Drawing.Rectangle(1, 1, oGroundTruthImageMatrix.Width, oGroundTruthImageMatrix.Height)).CopyTo(oGroundTruthImageMatrix)
+                                            SaveMatrix(sGroundTruthBoundariesName, oGroundTruthImageMatrix)
+                                        End Using
+
+                                        ' invert ground truth
+                                        Using oInverseGroundTruthMatrix As Matrix(Of Byte) = oGroundTruthImageMatrix.Clone
+                                            CvInvoke.BitwiseNot(oInverseGroundTruthMatrix, oInverseGroundTruthMatrix)
+
+                                            Using oLabelsMatrix As New Matrix(Of Integer)(oGroundTruthImageMatrix.Rows, oGroundTruthImageMatrix.Cols)
+                                                Using oLabelsInverseMatrix As New Matrix(Of Integer)(oInverseGroundTruthMatrix.Rows, oInverseGroundTruthMatrix.Cols)
+                                                    Dim iComponents As Integer = CvInvoke.ConnectedComponents(oGroundTruthImageMatrix, oLabelsMatrix)
+                                                    Dim iComponentsInverse As Integer = CvInvoke.ConnectedComponents(oInverseGroundTruthMatrix, oLabelsInverseMatrix)
+
+                                                    Using oMatrixUShort As New Matrix(Of UShort)(oGroundTruthImageMatrix.Rows, oGroundTruthImageMatrix.Cols)
+                                                        oMatrixUShort.SetZero()
+                                                        Using oMaskMatrix As New Matrix(Of Byte)(oGroundTruthImageMatrix.Rows, oGroundTruthImageMatrix.Cols)
+                                                            Using oLowerMatrix As New Matrix(Of Integer)(oGroundTruthImageMatrix.Rows, oGroundTruthImageMatrix.Cols)
+                                                                Using oUpperMatrix As New Matrix(Of Integer)(oGroundTruthImageMatrix.Rows, oGroundTruthImageMatrix.Cols)
+                                                                    oLowerMatrix.SetValue(1)
+                                                                    oUpperMatrix.SetValue(Integer.MaxValue)
+                                                                    If iComponents > 1 Then
+                                                                        CvInvoke.InRange(oLabelsMatrix, oLowerMatrix, oUpperMatrix, oMaskMatrix)
+                                                                        Using oConvertedLabels As Matrix(Of UShort) = oLabelsMatrix.Convert(Of UShort)
+                                                                            CvInvoke.cvCopy(oConvertedLabels, oMatrixUShort, oMaskMatrix)
+                                                                        End Using
+                                                                    End If
+                                                                    If iComponentsInverse > 1 Then
+                                                                        CvInvoke.InRange(oLabelsInverseMatrix, oLowerMatrix, oUpperMatrix, oMaskMatrix)
+                                                                        Using oConvertedLabels As Matrix(Of UShort) = oLabelsInverseMatrix.Convert(Of UShort)(1.0, iComponents - 1)
+                                                                            CvInvoke.cvCopy(oConvertedLabels, oMatrixUShort, oMaskMatrix)
+                                                                        End Using
+                                                                    End If
+                                                                End Using
+                                                            End Using
+                                                        End Using
+
+                                                        Using oGroundTruthSegmentationMatrix As Matrix(Of Byte) = ConvertUShortLabels(oMatrixUShort)
+                                                            SaveMatrix(sGroundTruthSegmentationName, oGroundTruthSegmentationMatrix)
+                                                        End Using
+                                                    End Using
+                                                End Using
+                                            End Using
+                                        End Using
+                                    End Using
+                                End If
+                            Next
+                        End If
                     End If
 #End Region
 
@@ -684,211 +946,240 @@ Module ScanSegment
 
                     ' -1 for any of the results indicates that no valid value was found
                     iCurrentProcessing = 0
-                    iProcessingSteps = oImageFiles.Count * SuperpixelList.Count * [Enum].GetValues(GetType(SegmentType)).GetLength(0)
+                    iProcessingStepsExt = oImageFiles.Count * SuperpixelList.Count * ([Enum].GetValues(GetType(SegmentType)).GetLength(0) - m_ExcludeProcess.Count - 1 + ScanSegmentThread.Count)
                     For Each oType In [Enum].GetValues(GetType(SegmentType))
-                        Dim sTypeName As String = [Enum].GetName(GetType(SegmentType), oType)
-
-                        Dim sQCFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "QC_" + sTypeName + ".xml"
-                        Dim oQC As Quantitative = Nothing
-
-                        If IO.File.Exists(sQCFile) Then
-                            oQC = DeserializeDataContractFile(Of Quantitative)(sQCFile, Quantitative.GetKnownTypes, , , False)
-                        Else
-                            oQC = New Quantitative
-                        End If
-
-                        ' set boundary array
-                        Dim oBRArray(4, 4) As Boolean
-                        For yDisp = 0 To 4
-                            For xDisp = 0 To 4
-                                Dim fDistance As Single = Math.Sqrt((yDisp - 2) * (yDisp - 2) + (xDisp - 2) * (xDisp - 2))
-                                If fDistance <= CSng(2) Then
-                                    oBRArray(yDisp, xDisp) = True
-                                Else
-                                    oBRArray(yDisp, xDisp) = False
-                                End If
-                            Next
-                        Next
-
-                        Dim oGroundTruthBoundariesDirectoryInfo As New IO.DirectoryInfo(oFolderBrowserDialog.SelectedPath + GroundTruthBoundariesDirectory)
-                        Dim oGroundTruthSegmentationDirectoryInfo As New IO.DirectoryInfo(oFolderBrowserDialog.SelectedPath + GroundTruthSegmentationDirectory)
-                        For i = 0 To oImageFiles.Count - 1
-                            Dim oImageFile As IO.FileInfo = oImageFiles(i)
-                            If Not oQC.Results.ContainsKey(oImageFile.Name) Then
-                                oQC.Results.Add(oImageFile.Name, New Dictionary(Of Integer, Dictionary(Of SegmentType, Tuple(Of Single, Single, Single))))
+                        If Not m_ExcludeProcess.Contains(oType) Then
+                            Dim iProcessorCount As Integer = 1
+                            If oType = SegmentType.ScanSegment Then
+                                iProcessorCount = ScanSegmentThread.Count
                             End If
-                            For Each iSuperpixel In SuperpixelList
-                                If Not oQC.Results(oImageFile.Name).ContainsKey(iSuperpixel) Then
-                                    oQC.Results(oImageFile.Name).Add(iSuperpixel, New Dictionary(Of SegmentType, Tuple(Of Single, Single, Single)))
+                            For iProcessorIndex = 0 To iProcessorCount - 1
+                                Dim sTypeName As String = [Enum].GetName(GetType(SegmentType), oType)
+                                Dim iProcessor As Integer = -1
+                                If oType = SegmentType.ScanSegment Then
+                                    iProcessor = ScanSegmentThread(iProcessorIndex)
+                                    sTypeName += "_" + iProcessor.ToString().PadLeft(2, "0")
                                 End If
-                                If (Not oQC.Results(oImageFile.Name)(iSuperpixel).ContainsKey(oType)) Then
-                                    Dim oOutlineOnlyImageFile As New IO.FileInfo(oFolderBrowserDialog.SelectedPath + OutlineImagesDirectory + sTypeName + "\" + Left(oImageFile.Name, Len(oImageFile.Name) - Len(oImageFile.Extension)) + "[" + sTypeName + "][" + iSuperpixel.ToString + "].tif")
-                                    Dim oSegmentationImageFile As New IO.FileInfo(oFolderBrowserDialog.SelectedPath + SegmentationImagesDirectory + sTypeName + "\" + Left(oImageFile.Name, Len(oImageFile.Name) - Len(oImageFile.Extension)) + "[" + sTypeName + "][" + iSuperpixel.ToString + "].tif")
-                                    If oOutlineOnlyImageFile.Exists AndAlso oSegmentationImageFile.Exists Then
-                                        Dim oBRList As New List(Of Single)
-                                        Dim oGroundTruthBoundariesFiles As List(Of IO.FileInfo) = oGroundTruthBoundariesDirectoryInfo.EnumerateFiles(Left(oImageFile.Name, Len(oImageFile.Name) - Len(oImageFile.Extension)) + "[*].tif", IO.SearchOption.TopDirectoryOnly).ToList
 
-                                        Using oOutlineOnlyBitmap As New System.Drawing.Bitmap(oOutlineOnlyImageFile.FullName)
-                                            Using oOutlineOnlyMatrix As Matrix(Of Byte) = BitmapToMatrix(oOutlineOnlyBitmap)
-                                                Using oMonoOutlineOnlyMatrix As New Matrix(Of Byte)(oOutlineOnlyMatrix.Size)
-                                                    CvInvoke.CvtColor(oOutlineOnlyMatrix, oMonoOutlineOnlyMatrix, CvEnum.ColorConversion.Bgr2Gray)
-                                                    Dim iOutlineOnlyWidth As Integer = oOutlineOnlyMatrix.Width
-                                                    Dim iOutlineOnlyHeight As Integer = oOutlineOnlyMatrix.Height
-                                                    Dim oOutlineRect As New System.Drawing.Rectangle(0, 0, iOutlineOnlyWidth, iOutlineOnlyHeight)
+                                Dim sQCFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "QC_" + sTypeName + ".xml"
+                                If Not IO.File.Exists(sQCFile) Then
+                                    Dim oQC As New Quantitative
 
-                                                    For Each oGroundTruthBoundariesFile In oGroundTruthBoundariesFiles
-                                                        Dim iTotalPixels As Integer = 0
-                                                        Dim iPixelsIn As Integer = 0
-                                                        Using oGroundTruthBoundariesBitmap As New System.Drawing.Bitmap(oGroundTruthBoundariesFile.FullName)
-                                                            Using oGroundTruthBoundariesMatrix As Matrix(Of Byte) = BitmapToMatrix(oGroundTruthBoundariesBitmap)
-                                                                Using oMonoGroundTruthBoundariesMatrix As New Matrix(Of Byte)(oGroundTruthBoundariesMatrix.Size)
-                                                                    CvInvoke.CvtColor(oGroundTruthBoundariesMatrix, oMonoGroundTruthBoundariesMatrix, CvEnum.ColorConversion.Bgr2Gray)
+                                    ' set boundary array
+                                    Dim oBRArray(4, 4) As Boolean
+                                    For yDisp = 0 To 4
+                                        For xDisp = 0 To 4
+                                            Dim fDistance As Single = Math.Sqrt((yDisp - 2) * (yDisp - 2) + (xDisp - 2) * (xDisp - 2))
+                                            If fDistance <= CSng(2) Then
+                                                oBRArray(yDisp, xDisp) = True
+                                            Else
+                                                oBRArray(yDisp, xDisp) = False
+                                            End If
+                                        Next
+                                    Next
 
-                                                                    Dim TaskDelegateGT As Action(Of Object) = Sub(ByVal oParam As Tuple(Of Integer, Integer))
-                                                                                                                  Dim y As Integer = oParam.Item2
-                                                                                                                  For x = 0 To iOutlineOnlyWidth - 1
-                                                                                                                      If oMonoGroundTruthBoundariesMatrix(y, x) <> 0 Then
-                                                                                                                          System.Threading.Interlocked.Increment(iTotalPixels)
-                                                                                                                          Dim bPixelIn As Boolean = False
-                                                                                                                          For yDisp = -2 To 2
-                                                                                                                              For xDisp = -2 To 2
-                                                                                                                                  If oBRArray(yDisp + 2, xDisp + 2) Then
-                                                                                                                                      Dim yComb As Integer = y + yDisp
-                                                                                                                                      Dim xComb As Integer = x + xDisp
+                                    Dim oGroundTruthBoundariesDirectoryInfo As New IO.DirectoryInfo(oFolderBrowserDialog.SelectedPath + GroundTruthBoundariesDirectory)
+                                    Dim oGroundTruthSegmentationDirectoryInfo As New IO.DirectoryInfo(oFolderBrowserDialog.SelectedPath + GroundTruthSegmentationDirectory)
+                                    For i = 0 To oImageFiles.Count - 1
+                                        Dim oImageFile As IO.FileInfo = oImageFiles(i)
+                                        If Not oQC.Results.ContainsKey(oImageFile.Name) Then
+                                            oQC.Results.Add(oImageFile.Name, New Dictionary(Of Integer, Dictionary(Of SegmentType, Dictionary(Of Integer, Tuple(Of Single, Single, Single)))))
+                                        End If
+                                        For Each iSuperpixel In SuperpixelList
+                                            If Not oQC.Results(oImageFile.Name).ContainsKey(iSuperpixel) Then
+                                                oQC.Results(oImageFile.Name).Add(iSuperpixel, New Dictionary(Of SegmentType, Dictionary(Of Integer, Tuple(Of Single, Single, Single))))
+                                            End If
+                                            If Not oQC.Results(oImageFile.Name)(iSuperpixel).ContainsKey(oType) Then
+                                                oQC.Results(oImageFile.Name)(iSuperpixel).Add(oType, New Dictionary(Of Integer, Tuple(Of Single, Single, Single)))
+                                            End If
+                                            If Not oQC.Results(oImageFile.Name)(iSuperpixel)(oType).ContainsKey(iProcessor) Then
+                                                Dim oOutlineOnlyImageFile As New IO.FileInfo(oFolderBrowserDialog.SelectedPath + OutlineImagesDirectory + sTypeName + "\" + Left(oImageFile.Name, Len(oImageFile.Name) - Len(oImageFile.Extension)) + "[" + sTypeName + "][" + iSuperpixel.ToString + "].tif")
+                                                Dim oSegmentationImageFile As New IO.FileInfo(oFolderBrowserDialog.SelectedPath + SegmentationImagesDirectory + sTypeName + "\" + Left(oImageFile.Name, Len(oImageFile.Name) - Len(oImageFile.Extension)) + "[" + sTypeName + "][" + iSuperpixel.ToString + "].tif")
+                                                If oOutlineOnlyImageFile.Exists AndAlso oSegmentationImageFile.Exists Then
+                                                    Dim oBRList As New List(Of Single)
+                                                    Dim oGroundTruthBoundariesFiles As New List(Of IO.FileInfo)
+                                                    Select Case oDatasetType
+                                                        Case DatasetType.BSD
+                                                            oGroundTruthBoundariesFiles = oGroundTruthBoundariesDirectoryInfo.EnumerateFiles(Left(oImageFile.Name, Len(oImageFile.Name) - Len(oImageFile.Extension)) + "[*].tif", IO.SearchOption.TopDirectoryOnly).ToList
+                                                        Case DatasetType.iCogseg
+                                                            oGroundTruthBoundariesFiles = oGroundTruthBoundariesDirectoryInfo.EnumerateFiles(Left(oImageFile.Name, Len(oImageFile.Name) - Len(oImageFile.Extension)) + ".tif", IO.SearchOption.TopDirectoryOnly).ToList
+                                                    End Select
 
-                                                                                                                                      If oOutlineRect.Contains(xComb, yComb) Then
-                                                                                                                                          If oMonoOutlineOnlyMatrix(yComb, xComb) <> 0 Then
-                                                                                                                                              bPixelIn = True
+                                                    If oGroundTruthBoundariesFiles.Count > 0 Then
+                                                        Using oOutlineOnlyBitmap As New System.Drawing.Bitmap(oOutlineOnlyImageFile.FullName)
+                                                            Using oOutlineOnlyMatrix As Matrix(Of Byte) = BitmapToMatrix(oOutlineOnlyBitmap)
+                                                                Using oMonoOutlineOnlyMatrix As New Matrix(Of Byte)(oOutlineOnlyMatrix.Size)
+                                                                    CvInvoke.CvtColor(oOutlineOnlyMatrix, oMonoOutlineOnlyMatrix, CvEnum.ColorConversion.Bgr2Gray)
+                                                                    Dim iOutlineOnlyWidth As Integer = oOutlineOnlyMatrix.Width
+                                                                    Dim iOutlineOnlyHeight As Integer = oOutlineOnlyMatrix.Height
+                                                                    Dim oOutlineRect As New System.Drawing.Rectangle(0, 0, iOutlineOnlyWidth, iOutlineOnlyHeight)
+
+                                                                    For Each oGroundTruthBoundariesFile In oGroundTruthBoundariesFiles
+                                                                        Dim iTotalPixels As Integer = 0
+                                                                        Dim iPixelsIn As Integer = 0
+                                                                        Using oGroundTruthBoundariesBitmap As New System.Drawing.Bitmap(oGroundTruthBoundariesFile.FullName)
+                                                                            Using oGroundTruthBoundariesMatrix As Matrix(Of Byte) = BitmapToMatrix(oGroundTruthBoundariesBitmap)
+                                                                                Using oMonoGroundTruthBoundariesMatrix As New Matrix(Of Byte)(oGroundTruthBoundariesMatrix.Size)
+                                                                                    CvInvoke.CvtColor(oGroundTruthBoundariesMatrix, oMonoGroundTruthBoundariesMatrix, CvEnum.ColorConversion.Bgr2Gray)
+
+                                                                                    Dim TaskDelegateGT As Action(Of Object) = Sub(ByVal oParam As Tuple(Of Integer, Integer))
+                                                                                                                                  Dim y As Integer = oParam.Item2
+                                                                                                                                  For x = 0 To iOutlineOnlyWidth - 1
+                                                                                                                                      If oMonoGroundTruthBoundariesMatrix(y, x) <> 0 Then
+                                                                                                                                          System.Threading.Interlocked.Increment(iTotalPixels)
+                                                                                                                                          Dim bPixelIn As Boolean = False
+                                                                                                                                          For yDisp = -2 To 2
+                                                                                                                                              For xDisp = -2 To 2
+                                                                                                                                                  If oBRArray(yDisp + 2, xDisp + 2) Then
+                                                                                                                                                      Dim yComb As Integer = y + yDisp
+                                                                                                                                                      Dim xComb As Integer = x + xDisp
+
+                                                                                                                                                      If oOutlineRect.Contains(xComb, yComb) Then
+                                                                                                                                                          If oMonoOutlineOnlyMatrix(yComb, xComb) <> 0 Then
+                                                                                                                                                              bPixelIn = True
+                                                                                                                                                          End If
+                                                                                                                                                      End If
+                                                                                                                                                  End If
+                                                                                                                                                  If bPixelIn Then
+                                                                                                                                                      Exit For
+                                                                                                                                                  End If
+                                                                                                                                              Next
+                                                                                                                                              If bPixelIn Then
+                                                                                                                                                  Exit For
+                                                                                                                                              End If
+                                                                                                                                          Next
+                                                                                                                                          If bPixelIn Then
+                                                                                                                                              System.Threading.Interlocked.Increment(iPixelsIn)
                                                                                                                                           End If
                                                                                                                                       End If
-                                                                                                                                  End If
-                                                                                                                                  If bPixelIn Then
-                                                                                                                                      Exit For
-                                                                                                                                  End If
-                                                                                                                              Next
-                                                                                                                              If bPixelIn Then
-                                                                                                                                  Exit For
-                                                                                                                              End If
-                                                                                                                          Next
-                                                                                                                          If bPixelIn Then
-                                                                                                                              System.Threading.Interlocked.Increment(iPixelsIn)
-                                                                                                                          End If
-                                                                                                                      End If
-                                                                                                                  Next
-                                                                                                              End Sub
+                                                                                                                                  Next
+                                                                                                                              End Sub
 
-                                                                    ParallelProcess(Enumerable.Range(0, iOutlineOnlyHeight).ToList, TaskDelegateGT, AddressOf UpdateTasks, AddressOf CPUUtilisation, 4, 8)
+                                                                                    ParallelProcess(Enumerable.Range(0, iOutlineOnlyHeight).ToList, TaskDelegateGT, AddressOf UpdateTasks, AddressOf CPUUtilisation, 4, 8)
+                                                                                End Using
+                                                                            End Using
+                                                                        End Using
+
+                                                                        oBRList.Add(CSng(iPixelsIn) / CSng(iTotalPixels))
+                                                                    Next
                                                                 End Using
                                                             End Using
                                                         End Using
+                                                    End If
 
-                                                        oBRList.Add(CSng(iPixelsIn) / CSng(iTotalPixels))
-                                                    Next
-                                                End Using
-                                            End Using
-                                        End Using
+                                                    Dim oUEList As New ConcurrentBag(Of Single)
+                                                    Dim oASAList As New ConcurrentBag(Of Single)
+                                                    Dim oGroundTruthSegmentationFiles As New List(Of IO.FileInfo)
+                                                    Select Case oDatasetType
+                                                        Case DatasetType.BSD
+                                                            oGroundTruthSegmentationFiles = oGroundTruthSegmentationDirectoryInfo.EnumerateFiles(Left(oImageFile.Name, Len(oImageFile.Name) - Len(oImageFile.Extension)) + "[*].tif", IO.SearchOption.TopDirectoryOnly).ToList
+                                                        Case DatasetType.iCogseg
+                                                            oGroundTruthSegmentationFiles = oGroundTruthSegmentationDirectoryInfo.EnumerateFiles(Left(oImageFile.Name, Len(oImageFile.Name) - Len(oImageFile.Extension)) + ".tif", IO.SearchOption.TopDirectoryOnly).ToList
+                                                    End Select
 
-                                        Dim oUEList As New ConcurrentBag(Of Single)
-                                        Dim oASAList As New ConcurrentBag(Of Single)
-                                        Dim oGroundTruthSegmentationFiles As List(Of IO.FileInfo) = oGroundTruthSegmentationDirectoryInfo.EnumerateFiles(Left(oImageFile.Name, Len(oImageFile.Name) - Len(oImageFile.Extension)) + "[*].tif", IO.SearchOption.TopDirectoryOnly).ToList
-                                        Using oSegmentationBitmap As New System.Drawing.Bitmap(oSegmentationImageFile.FullName)
-                                            Using oSegmentationMatrix As Matrix(Of Byte) = BitmapToMatrix(oSegmentationBitmap)
-                                                Using oLabelsSegmentationMatrix As Matrix(Of UShort) = UnconvertUShortLabels(oSegmentationMatrix)
-                                                    Dim iSegmentationWidth As Integer = oSegmentationMatrix.Width
-                                                    Dim iSegmentationHeight As Integer = oSegmentationMatrix.Height
+                                                    If oGroundTruthSegmentationFiles.Count > 0 Then
+                                                        Using oSegmentationBitmap As New System.Drawing.Bitmap(oSegmentationImageFile.FullName)
+                                                            Using oSegmentationMatrix As Matrix(Of Byte) = BitmapToMatrix(oSegmentationBitmap)
+                                                                Using oLabelsSegmentationMatrix As Matrix(Of UShort) = UnconvertUShortLabels(oSegmentationMatrix)
+                                                                    Dim iSegmentationWidth As Integer = oSegmentationMatrix.Width
+                                                                    Dim iSegmentationHeight As Integer = oSegmentationMatrix.Height
 
-                                                    ' create segment dictionary of point locations
-                                                    Dim oSegmentDictionary As New Dictionary(Of Integer, List(Of System.Drawing.Point))
-                                                    For y = 0 To iSegmentationHeight - 1
-                                                        For x = 0 To iSegmentationWidth - 1
-                                                            Dim iLabel As UShort = oLabelsSegmentationMatrix(y, x)
-                                                            If Not oSegmentDictionary.ContainsKey(iLabel) Then
-                                                                oSegmentDictionary.Add(iLabel, New List(Of System.Drawing.Point))
-                                                            End If
+                                                                    ' create segment dictionary of point locations
+                                                                    Dim oSegmentDictionary As New Dictionary(Of Integer, List(Of System.Drawing.Point))
+                                                                    For y = 0 To iSegmentationHeight - 1
+                                                                        For x = 0 To iSegmentationWidth - 1
+                                                                            Dim iLabel As UShort = oLabelsSegmentationMatrix(y, x)
+                                                                            If Not oSegmentDictionary.ContainsKey(iLabel) Then
+                                                                                oSegmentDictionary.Add(iLabel, New List(Of System.Drawing.Point))
+                                                                            End If
 
-                                                            oSegmentDictionary(iLabel).Add(New System.Drawing.Point(x, y))
-                                                        Next
-                                                    Next
+                                                                            oSegmentDictionary(iLabel).Add(New System.Drawing.Point(x, y))
+                                                                        Next
+                                                                    Next
 
-                                                    Dim oCombineAction As Action(Of Object) = Sub(oParam As IO.FileInfo)
-                                                                                                  Using oGroundTruthSegmentationBitmap As New System.Drawing.Bitmap(oParam.FullName)
-                                                                                                      Using oGroundTruthSegmentationMatrix As Matrix(Of Byte) = BitmapToMatrix(oGroundTruthSegmentationBitmap)
-                                                                                                          Using oLabelsGroundTruthSegmentationMatrix As Matrix(Of UShort) = UnconvertUShortLabels(oGroundTruthSegmentationMatrix)
-                                                                                                              Dim oOverlapDictionary As New Dictionary(Of Integer, Dictionary(Of Integer, Integer))
-                                                                                                              For Each oKeyValue In oSegmentDictionary
-                                                                                                                  If Not oOverlapDictionary.ContainsKey(oKeyValue.Key) Then
-                                                                                                                      oOverlapDictionary.Add(oKeyValue.Key, New Dictionary(Of Integer, Integer))
-                                                                                                                  End If
+                                                                    Dim oCombineAction As Action(Of Object) = Sub(oParam As IO.FileInfo)
+                                                                                                                  Using oGroundTruthSegmentationBitmap As New System.Drawing.Bitmap(oParam.FullName)
+                                                                                                                      Using oGroundTruthSegmentationMatrix As Matrix(Of Byte) = BitmapToMatrix(oGroundTruthSegmentationBitmap)
+                                                                                                                          Using oLabelsGroundTruthSegmentationMatrix As Matrix(Of UShort) = UnconvertUShortLabels(oGroundTruthSegmentationMatrix)
+                                                                                                                              Dim oOverlapDictionary As New Dictionary(Of Integer, Dictionary(Of Integer, Integer))
+                                                                                                                              For Each oKeyValue In oSegmentDictionary
+                                                                                                                                  If Not oOverlapDictionary.ContainsKey(oKeyValue.Key) Then
+                                                                                                                                      oOverlapDictionary.Add(oKeyValue.Key, New Dictionary(Of Integer, Integer))
+                                                                                                                                  End If
 
-                                                                                                                  For Each oPoint In oKeyValue.Value
-                                                                                                                      Dim iLabel As UShort = oLabelsGroundTruthSegmentationMatrix(oPoint.Y, oPoint.X)
-                                                                                                                      If Not oOverlapDictionary(oKeyValue.Key).ContainsKey(iLabel) Then
-                                                                                                                          oOverlapDictionary(oKeyValue.Key).Add(iLabel, 0)
-                                                                                                                      End If
-                                                                                                                      oOverlapDictionary(oKeyValue.Key)(iLabel) += 1
-                                                                                                                  Next
-                                                                                                              Next
+                                                                                                                                  For Each oPoint In oKeyValue.Value
+                                                                                                                                      Dim iLabel As UShort = oLabelsGroundTruthSegmentationMatrix(oPoint.Y, oPoint.X)
+                                                                                                                                      If Not oOverlapDictionary(oKeyValue.Key).ContainsKey(iLabel) Then
+                                                                                                                                          oOverlapDictionary(oKeyValue.Key).Add(iLabel, 0)
+                                                                                                                                      End If
+                                                                                                                                      oOverlapDictionary(oKeyValue.Key)(iLabel) += 1
+                                                                                                                                  Next
+                                                                                                                              Next
 
-                                                                                                              Dim oOrderedDictionary As New Dictionary(Of Integer, List(Of KeyValuePair(Of Integer, Integer)))
-                                                                                                              For Each oKeyValue In oOverlapDictionary
-                                                                                                                  If Not oOrderedDictionary.ContainsKey(oKeyValue.Key) Then
-                                                                                                                      oOrderedDictionary.Add(oKeyValue.Key, oKeyValue.Value.ToList.OrderByDescending(Function(x) x.Value).ToList)
-                                                                                                                  End If
-                                                                                                              Next
+                                                                                                                              Dim oOrderedDictionary As New Dictionary(Of Integer, List(Of KeyValuePair(Of Integer, Integer)))
+                                                                                                                              For Each oKeyValue In oOverlapDictionary
+                                                                                                                                  If Not oOrderedDictionary.ContainsKey(oKeyValue.Key) Then
+                                                                                                                                      oOrderedDictionary.Add(oKeyValue.Key, oKeyValue.Value.ToList.OrderByDescending(Function(x) x.Value).ToList)
+                                                                                                                                  End If
+                                                                                                                              Next
 
-                                                                                                              Dim iTotalPoints As Integer = iSegmentationWidth * iSegmentationHeight
-                                                                                                              Dim iUEPoints As Integer = 0
-                                                                                                              Dim iASAPoints As Integer = 0
-                                                                                                              For Each oKeyValue In oOrderedDictionary
-                                                                                                                  If oKeyValue.Value.Count = 1 Then
-                                                                                                                      ' if superpixel is completely contained within segment, then add all points to the ASA count
-                                                                                                                      iASAPoints += oKeyValue.Value.First.Value
-                                                                                                                  Else
-                                                                                                                      ' add the smaller groups to the UE count
-                                                                                                                      For j = 1 To oKeyValue.Value.Count - 1
-                                                                                                                          iUEPoints += oKeyValue.Value(j).Value
-                                                                                                                      Next
+                                                                                                                              Dim iTotalPoints As Integer = iSegmentationWidth * iSegmentationHeight
+                                                                                                                              Dim iUEPoints As Integer = 0
+                                                                                                                              Dim iASAPoints As Integer = 0
+                                                                                                                              For Each oKeyValue In oOrderedDictionary
+                                                                                                                                  If oKeyValue.Value.Count = 1 Then
+                                                                                                                                      ' if superpixel is completely contained within segment, then add all points to the ASA count
+                                                                                                                                      iASAPoints += oKeyValue.Value.First.Value
+                                                                                                                                  Else
+                                                                                                                                      ' add the smaller groups to the UE count
+                                                                                                                                      For j = 1 To oKeyValue.Value.Count - 1
+                                                                                                                                          iUEPoints += oKeyValue.Value(j).Value
+                                                                                                                                      Next
 
-                                                                                                                      ' add the largest group to the ASA count
-                                                                                                                      iASAPoints += oKeyValue.Value.First.Value
-                                                                                                                  End If
-                                                                                                              Next
+                                                                                                                                      ' add the largest group to the ASA count
+                                                                                                                                      iASAPoints += oKeyValue.Value.First.Value
+                                                                                                                                  End If
+                                                                                                                              Next
 
-                                                                                                              oUEList.Add(CSng(iUEPoints) / CSng(iTotalPoints))
-                                                                                                              oASAList.Add(CSng(iASAPoints) / CSng(iTotalPoints))
-                                                                                                          End Using
-                                                                                                      End Using
-                                                                                                  End Using
-                                                                                              End Sub
+                                                                                                                              oUEList.Add(CSng(iUEPoints) / CSng(iTotalPoints))
+                                                                                                                              oASAList.Add(CSng(iASAPoints) / CSng(iTotalPoints))
+                                                                                                                          End Using
+                                                                                                                      End Using
+                                                                                                                  End Using
+                                                                                                              End Sub
 
-                                                    Dim oCombineActionList As New List(Of Tuple(Of Action(Of Object), Object))
-                                                    For Each oGroundTruthSegmentationFile In oGroundTruthSegmentationFiles
-                                                        oCombineActionList.Add(New Tuple(Of Action(Of Object), Object)(oCombineAction, oGroundTruthSegmentationFile))
-                                                    Next
+                                                                    Dim oCombineActionList As New List(Of Tuple(Of Action(Of Object), Object))
+                                                                    For Each oGroundTruthSegmentationFile In oGroundTruthSegmentationFiles
+                                                                        oCombineActionList.Add(New Tuple(Of Action(Of Object), Object)(oCombineAction, oGroundTruthSegmentationFile))
+                                                                    Next
 
-                                                    ProtectedRunTasks(oCombineActionList)
-                                                End Using
-                                            End Using
-                                        End Using
+                                                                    ProtectedRunTasks(oCombineActionList)
+                                                                End Using
+                                                            End Using
+                                                        End Using
+                                                    End If
 
-                                        Dim fBR As Single = If(oBRList.Count = 0, -1, oBRList.Average)
-                                        Dim fUE As Single = If(oUEList.Count = 0, -1, oUEList.Average)
-                                        Dim fASA As Single = If(oASAList.Count = 0, -1, oASAList.Average)
+                                                    Dim fBR As Single = If(oBRList.Count = 0, -1, oBRList.Average)
+                                                    Dim fUE As Single = If(oUEList.Count = 0, -1, oUEList.Average)
+                                                    Dim fASA As Single = If(oASAList.Count = 0, -1, oASAList.Average)
 
-                                        oQC.Results(oImageFile.Name)(iSuperpixel).Add(oType, New Tuple(Of Single, Single, Single)(fBR, fUE, fASA))
-                                    Else
-                                        oQC.Results(oImageFile.Name)(iSuperpixel).Add(oType, New Tuple(Of Single, Single, Single)(-1, -1, -1))
-                                    End If
+                                                    oQC.Results(oImageFile.Name)(iSuperpixel)(oType).Add(iProcessor, New Tuple(Of Single, Single, Single)(fBR, fUE, fASA))
+                                                Else
+                                                    oQC.Results(oImageFile.Name)(iSuperpixel)(oType).Add(iProcessor, New Tuple(Of Single, Single, Single)(-1, -1, -1))
+                                                End If
+                                            End If
+
+                                            iCurrentProcessing += 1
+                                            Console.WriteLine(GetElapsed(oStartDate) + " QC Processing " + iCurrentProcessing.ToString + "/" + iProcessingStepsExt.ToString)
+                                        Next
+                                    Next
+
+                                    SerializeDataContractFile(sQCFile, oQC, Quantitative.GetKnownTypes, , , False)
+
+                                    Console.WriteLine(GetElapsed(oStartDate) + " Quantitative Check " + sTypeName + " Saved")
                                 End If
-
-                                iCurrentProcessing += 1
-                                Console.WriteLine(GetElapsed(oStartDate) + " QC Processing " + iCurrentProcessing.ToString + "/" + iProcessingSteps.ToString)
                             Next
-                        Next
-
-                        SerializeDataContractFile(sQCFile, oQC, Quantitative.GetKnownTypes, , , False)
-
-                        Console.WriteLine(GetElapsed(oStartDate) + " Quantitative Check " + sTypeName + " Saved")
+                        End If
                     Next
 #End Region
 
@@ -898,212 +1189,241 @@ Module ScanSegment
 
                     ' -1 for any of the results indicates that no valid value was found
                     iCurrentProcessing = 0
-                    iProcessingSteps = oImageFiles.Count * NoiseList.Count * [Enum].GetValues(GetType(SegmentType)).GetLength(0)
+                    iProcessingStepsExt = oImageFiles.Count * NoiseList.Count * ([Enum].GetValues(GetType(SegmentType)).GetLength(0) - m_ExcludeProcess.Count - 1 + ScanSegmentThread.Count)
                     For Each oType In [Enum].GetValues(GetType(SegmentType))
-                        Dim sTypeName As String = [Enum].GetName(GetType(SegmentType), oType)
-
-                        Dim sQCNoiseFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "QCNoise_" + sTypeName + ".xml"
-                        Dim oQCNoise As Quantitative = Nothing
-
-                        If IO.File.Exists(sQCNoiseFile) Then
-                            oQCNoise = DeserializeDataContractFile(Of Quantitative)(sQCNoiseFile, Quantitative.GetKnownTypes, , , False)
-                        Else
-                            oQCNoise = New Quantitative
-                        End If
-
-                        ' set boundary array
-                        Dim oBRArray(4, 4) As Boolean
-                        For yDisp = 0 To 4
-                            For xDisp = 0 To 4
-                                Dim fDistance As Single = Math.Sqrt((yDisp - 2) * (yDisp - 2) + (xDisp - 2) * (xDisp - 2))
-                                If fDistance <= CSng(2) Then
-                                    oBRArray(yDisp, xDisp) = True
-                                Else
-                                    oBRArray(yDisp, xDisp) = False
-                                End If
-                            Next
-                        Next
-
-                        Dim oGroundTruthBoundariesDirectoryInfo As New IO.DirectoryInfo(oFolderBrowserDialog.SelectedPath + GroundTruthBoundariesDirectory)
-                        Dim oGroundTruthSegmentationDirectoryInfo As New IO.DirectoryInfo(oFolderBrowserDialog.SelectedPath + GroundTruthSegmentationDirectory)
-                        For i = 0 To oImageFiles.Count - 1
-                            Dim oImageFile As IO.FileInfo = oImageFiles(i)
-                            If Not oQCNoise.Results.ContainsKey(oImageFile.Name) Then
-                                oQCNoise.Results.Add(oImageFile.Name, New Dictionary(Of Integer, Dictionary(Of SegmentType, Tuple(Of Single, Single, Single))))
+                        If Not m_ExcludeProcess.Contains(oType) Then
+                            Dim iProcessorCount As Integer = 1
+                            If oType = SegmentType.ScanSegment Then
+                                iProcessorCount = ScanSegmentThread.Count
                             End If
-                            For Each fNoise In NoiseList
-                                Dim iNoise As Integer = CInt(fNoise * CSng(NoiseMul))
-                                If Not oQCNoise.Results(oImageFile.Name).ContainsKey(iNoise) Then
-                                    oQCNoise.Results(oImageFile.Name).Add(iNoise, New Dictionary(Of SegmentType, Tuple(Of Single, Single, Single)))
+                            For iProcessorIndex = 0 To iProcessorCount - 1
+                                Dim sTypeName As String = [Enum].GetName(GetType(SegmentType), oType)
+                                Dim iProcessor As Integer = -1
+                                If oType = SegmentType.ScanSegment Then
+                                    iProcessor = ScanSegmentThread(iProcessorIndex)
+                                    sTypeName += "_" + iProcessor.ToString().PadLeft(2, "0")
                                 End If
-                                If (Not oQCNoise.Results(oImageFile.Name)(iNoise).ContainsKey(oType)) Then
-                                    Dim oOutlineOnlyImageFile As New IO.FileInfo(oFolderBrowserDialog.SelectedPath + NoiseOutlineImagesDirectory + sTypeName + "\" + Left(oImageFile.Name, Len(oImageFile.Name) - Len(oImageFile.Extension)) + "[" + sTypeName + "][" + iNoise.ToString + "].tif")
-                                    Dim oSegmentationImageFile As New IO.FileInfo(oFolderBrowserDialog.SelectedPath + NoiseSegmentationImagesDirectory + sTypeName + "\" + Left(oImageFile.Name, Len(oImageFile.Name) - Len(oImageFile.Extension)) + "[" + sTypeName + "][" + iNoise.ToString + "].tif")
-                                    If oOutlineOnlyImageFile.Exists AndAlso oSegmentationImageFile.Exists Then
-                                        Dim oBRList As New List(Of Single)
-                                        Dim oGroundTruthBoundariesFiles As List(Of IO.FileInfo) = oGroundTruthBoundariesDirectoryInfo.EnumerateFiles(Left(oImageFile.Name, Len(oImageFile.Name) - Len(oImageFile.Extension)) + "[*].tif", IO.SearchOption.TopDirectoryOnly).ToList
 
-                                        Using oOutlineOnlyBitmap As New System.Drawing.Bitmap(oOutlineOnlyImageFile.FullName)
-                                            Using oOutlineOnlyMatrix As Matrix(Of Byte) = BitmapToMatrix(oOutlineOnlyBitmap)
-                                                Using oMonoOutlineOnlyMatrix As New Matrix(Of Byte)(oOutlineOnlyMatrix.Size)
-                                                    CvInvoke.CvtColor(oOutlineOnlyMatrix, oMonoOutlineOnlyMatrix, CvEnum.ColorConversion.Bgr2Gray)
-                                                    Dim iOutlineOnlyWidth As Integer = oOutlineOnlyMatrix.Width
-                                                    Dim iOutlineOnlyHeight As Integer = oOutlineOnlyMatrix.Height
-                                                    Dim oOutlineRect As New System.Drawing.Rectangle(0, 0, iOutlineOnlyWidth, iOutlineOnlyHeight)
+                                Dim sQCNoiseFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "QCNoise_" + sTypeName + ".xml"
+                                If Not IO.File.Exists(sQCNoiseFile) Then
+                                    Dim oQCNoise As New Quantitative
 
-                                                    For Each oGroundTruthBoundariesFile In oGroundTruthBoundariesFiles
-                                                        Dim iTotalPixels As Integer = 0
-                                                        Dim iPixelsIn As Integer = 0
-                                                        Using oGroundTruthBoundariesBitmap As New System.Drawing.Bitmap(oGroundTruthBoundariesFile.FullName)
-                                                            Using oGroundTruthBoundariesMatrix As Matrix(Of Byte) = BitmapToMatrix(oGroundTruthBoundariesBitmap)
-                                                                Using oMonoGroundTruthBoundariesMatrix As New Matrix(Of Byte)(oGroundTruthBoundariesMatrix.Size)
-                                                                    CvInvoke.CvtColor(oGroundTruthBoundariesMatrix, oMonoGroundTruthBoundariesMatrix, CvEnum.ColorConversion.Bgr2Gray)
+                                    ' set boundary array
+                                    Dim oBRArray(4, 4) As Boolean
+                                    For yDisp = 0 To 4
+                                        For xDisp = 0 To 4
+                                            Dim fDistance As Single = Math.Sqrt((yDisp - 2) * (yDisp - 2) + (xDisp - 2) * (xDisp - 2))
+                                            If fDistance <= CSng(2) Then
+                                                oBRArray(yDisp, xDisp) = True
+                                            Else
+                                                oBRArray(yDisp, xDisp) = False
+                                            End If
+                                        Next
+                                    Next
 
-                                                                    Dim TaskDelegateGT As Action(Of Object) = Sub(ByVal oParam As Tuple(Of Integer, Integer))
-                                                                                                                  Dim y As Integer = oParam.Item2
-                                                                                                                  For x = 0 To iOutlineOnlyWidth - 1
-                                                                                                                      If oMonoGroundTruthBoundariesMatrix(y, x) <> 0 Then
-                                                                                                                          System.Threading.Interlocked.Increment(iTotalPixels)
-                                                                                                                          Dim bPixelIn As Boolean = False
-                                                                                                                          For yDisp = -2 To 2
-                                                                                                                              For xDisp = -2 To 2
-                                                                                                                                  If oBRArray(yDisp + 2, xDisp + 2) Then
-                                                                                                                                      Dim yComb As Integer = y + yDisp
-                                                                                                                                      Dim xComb As Integer = x + xDisp
+                                    Dim oGroundTruthBoundariesDirectoryInfo As New IO.DirectoryInfo(oFolderBrowserDialog.SelectedPath + GroundTruthBoundariesDirectory)
+                                    Dim oGroundTruthSegmentationDirectoryInfo As New IO.DirectoryInfo(oFolderBrowserDialog.SelectedPath + GroundTruthSegmentationDirectory)
+                                    For i = 0 To oImageFiles.Count - 1
+                                        Dim oImageFile As IO.FileInfo = oImageFiles(i)
+                                        If Not oQCNoise.Results.ContainsKey(oImageFile.Name) Then
+                                            oQCNoise.Results.Add(oImageFile.Name, New Dictionary(Of Integer, Dictionary(Of SegmentType, Dictionary(Of Integer, Tuple(Of Single, Single, Single)))))
+                                        End If
+                                        For Each fNoise In NoiseList
+                                            Dim iNoise As Integer = CInt(fNoise * CSng(NoiseMul))
+                                            If Not oQCNoise.Results(oImageFile.Name).ContainsKey(iNoise) Then
+                                                oQCNoise.Results(oImageFile.Name).Add(iNoise, New Dictionary(Of SegmentType, Dictionary(Of Integer, Tuple(Of Single, Single, Single))))
+                                            End If
+                                            If Not oQCNoise.Results(oImageFile.Name)(iNoise).ContainsKey(oType) Then
+                                                oQCNoise.Results(oImageFile.Name)(iNoise).Add(oType, New Dictionary(Of Integer, Tuple(Of Single, Single, Single)))
+                                            End If
+                                            If Not oQCNoise.Results(oImageFile.Name)(iNoise)(oType).ContainsKey(iProcessor) Then
+                                                Dim oOutlineOnlyImageFile As New IO.FileInfo(oFolderBrowserDialog.SelectedPath + NoiseOutlineImagesDirectory + sTypeName + "\" + Left(oImageFile.Name, Len(oImageFile.Name) - Len(oImageFile.Extension)) + "[" + sTypeName + "][" + iNoise.ToString + "].tif")
+                                                Dim oSegmentationImageFile As New IO.FileInfo(oFolderBrowserDialog.SelectedPath + NoiseSegmentationImagesDirectory + sTypeName + "\" + Left(oImageFile.Name, Len(oImageFile.Name) - Len(oImageFile.Extension)) + "[" + sTypeName + "][" + iNoise.ToString + "].tif")
+                                                If oOutlineOnlyImageFile.Exists AndAlso oSegmentationImageFile.Exists Then
+                                                    Dim oBRList As New List(Of Single)
+                                                    Dim oGroundTruthBoundariesFiles As New List(Of IO.FileInfo)
+                                                    Select Case oDatasetType
+                                                        Case DatasetType.BSD
+                                                            oGroundTruthBoundariesFiles = oGroundTruthBoundariesDirectoryInfo.EnumerateFiles(Left(oImageFile.Name, Len(oImageFile.Name) - Len(oImageFile.Extension)) + "[*].tif", IO.SearchOption.TopDirectoryOnly).ToList
+                                                        Case DatasetType.iCogseg
+                                                            oGroundTruthBoundariesFiles = oGroundTruthBoundariesDirectoryInfo.EnumerateFiles(Left(oImageFile.Name, Len(oImageFile.Name) - Len(oImageFile.Extension)) + ".tif", IO.SearchOption.TopDirectoryOnly).ToList
+                                                    End Select
 
-                                                                                                                                      If oOutlineRect.Contains(xComb, yComb) Then
-                                                                                                                                          If oMonoOutlineOnlyMatrix(yComb, xComb) <> 0 Then
-                                                                                                                                              bPixelIn = True
+                                                    If oGroundTruthBoundariesFiles.Count > 0 Then
+                                                        Using oOutlineOnlyBitmap As New System.Drawing.Bitmap(oOutlineOnlyImageFile.FullName)
+                                                            Using oOutlineOnlyMatrix As Matrix(Of Byte) = BitmapToMatrix(oOutlineOnlyBitmap)
+                                                                Using oMonoOutlineOnlyMatrix As New Matrix(Of Byte)(oOutlineOnlyMatrix.Size)
+                                                                    CvInvoke.CvtColor(oOutlineOnlyMatrix, oMonoOutlineOnlyMatrix, CvEnum.ColorConversion.Bgr2Gray)
+                                                                    Dim iOutlineOnlyWidth As Integer = oOutlineOnlyMatrix.Width
+                                                                    Dim iOutlineOnlyHeight As Integer = oOutlineOnlyMatrix.Height
+                                                                    Dim oOutlineRect As New System.Drawing.Rectangle(0, 0, iOutlineOnlyWidth, iOutlineOnlyHeight)
+
+                                                                    For Each oGroundTruthBoundariesFile In oGroundTruthBoundariesFiles
+                                                                        Dim iTotalPixels As Integer = 0
+                                                                        Dim iPixelsIn As Integer = 0
+                                                                        Using oGroundTruthBoundariesBitmap As New System.Drawing.Bitmap(oGroundTruthBoundariesFile.FullName)
+                                                                            Using oGroundTruthBoundariesMatrix As Matrix(Of Byte) = BitmapToMatrix(oGroundTruthBoundariesBitmap)
+                                                                                Using oMonoGroundTruthBoundariesMatrix As New Matrix(Of Byte)(oGroundTruthBoundariesMatrix.Size)
+                                                                                    CvInvoke.CvtColor(oGroundTruthBoundariesMatrix, oMonoGroundTruthBoundariesMatrix, CvEnum.ColorConversion.Bgr2Gray)
+
+                                                                                    Dim TaskDelegateGT As Action(Of Object) = Sub(ByVal oParam As Tuple(Of Integer, Integer))
+                                                                                                                                  Dim y As Integer = oParam.Item2
+                                                                                                                                  For x = 0 To iOutlineOnlyWidth - 1
+                                                                                                                                      If oMonoGroundTruthBoundariesMatrix(y, x) <> 0 Then
+                                                                                                                                          System.Threading.Interlocked.Increment(iTotalPixels)
+                                                                                                                                          Dim bPixelIn As Boolean = False
+                                                                                                                                          For yDisp = -2 To 2
+                                                                                                                                              For xDisp = -2 To 2
+                                                                                                                                                  If oBRArray(yDisp + 2, xDisp + 2) Then
+                                                                                                                                                      Dim yComb As Integer = y + yDisp
+                                                                                                                                                      Dim xComb As Integer = x + xDisp
+
+                                                                                                                                                      If oOutlineRect.Contains(xComb, yComb) Then
+                                                                                                                                                          If oMonoOutlineOnlyMatrix(yComb, xComb) <> 0 Then
+                                                                                                                                                              bPixelIn = True
+                                                                                                                                                          End If
+                                                                                                                                                      End If
+                                                                                                                                                  End If
+                                                                                                                                                  If bPixelIn Then
+                                                                                                                                                      Exit For
+                                                                                                                                                  End If
+                                                                                                                                              Next
+                                                                                                                                              If bPixelIn Then
+                                                                                                                                                  Exit For
+                                                                                                                                              End If
+                                                                                                                                          Next
+                                                                                                                                          If bPixelIn Then
+                                                                                                                                              System.Threading.Interlocked.Increment(iPixelsIn)
                                                                                                                                           End If
                                                                                                                                       End If
-                                                                                                                                  End If
-                                                                                                                                  If bPixelIn Then
-                                                                                                                                      Exit For
-                                                                                                                                  End If
-                                                                                                                              Next
-                                                                                                                              If bPixelIn Then
-                                                                                                                                  Exit For
-                                                                                                                              End If
-                                                                                                                          Next
-                                                                                                                          If bPixelIn Then
-                                                                                                                              System.Threading.Interlocked.Increment(iPixelsIn)
-                                                                                                                          End If
-                                                                                                                      End If
-                                                                                                                  Next
-                                                                                                              End Sub
+                                                                                                                                  Next
+                                                                                                                              End Sub
 
-                                                                    ParallelProcess(Enumerable.Range(0, iOutlineOnlyHeight).ToList, TaskDelegateGT, AddressOf UpdateTasks, AddressOf CPUUtilisation, 4, 8)
+                                                                                    ParallelProcess(Enumerable.Range(0, iOutlineOnlyHeight).ToList, TaskDelegateGT, AddressOf UpdateTasks, AddressOf CPUUtilisation, 4, 8)
+                                                                                End Using
+                                                                            End Using
+                                                                        End Using
+
+                                                                        oBRList.Add(CSng(iPixelsIn) / CSng(iTotalPixels))
+                                                                    Next
                                                                 End Using
                                                             End Using
                                                         End Using
+                                                    End If
 
-                                                        oBRList.Add(CSng(iPixelsIn) / CSng(iTotalPixels))
-                                                    Next
-                                                End Using
-                                            End Using
-                                        End Using
+                                                    Dim oUEList As New ConcurrentBag(Of Single)
+                                                    Dim oASAList As New ConcurrentBag(Of Single)
+                                                    Dim oGroundTruthSegmentationFiles As New List(Of IO.FileInfo)
+                                                    Select Case oDatasetType
+                                                        Case DatasetType.BSD
+                                                            oGroundTruthSegmentationFiles = oGroundTruthSegmentationDirectoryInfo.EnumerateFiles(Left(oImageFile.Name, Len(oImageFile.Name) - Len(oImageFile.Extension)) + "[*].tif", IO.SearchOption.TopDirectoryOnly).ToList
+                                                        Case DatasetType.iCogseg
+                                                            oGroundTruthSegmentationFiles = oGroundTruthSegmentationDirectoryInfo.EnumerateFiles(Left(oImageFile.Name, Len(oImageFile.Name) - Len(oImageFile.Extension)) + ".tif", IO.SearchOption.TopDirectoryOnly).ToList
+                                                    End Select
 
-                                        Dim oUEList As New ConcurrentBag(Of Single)
-                                        Dim oASAList As New ConcurrentBag(Of Single)
-                                        Dim oGroundTruthSegmentationFiles As List(Of IO.FileInfo) = oGroundTruthSegmentationDirectoryInfo.EnumerateFiles(Left(oImageFile.Name, Len(oImageFile.Name) - Len(oImageFile.Extension)) + "[*].tif", IO.SearchOption.TopDirectoryOnly).ToList
-                                        Using oSegmentationBitmap As New System.Drawing.Bitmap(oSegmentationImageFile.FullName)
-                                            Using oSegmentationMatrix As Matrix(Of Byte) = BitmapToMatrix(oSegmentationBitmap)
-                                                Using oLabelsSegmentationMatrix As Matrix(Of UShort) = UnconvertUShortLabels(oSegmentationMatrix)
-                                                    Dim iSegmentationWidth As Integer = oSegmentationMatrix.Width
-                                                    Dim iSegmentationHeight As Integer = oSegmentationMatrix.Height
+                                                    If oGroundTruthSegmentationFiles.Count > 0 Then
+                                                        Using oSegmentationBitmap As New System.Drawing.Bitmap(oSegmentationImageFile.FullName)
+                                                            Using oSegmentationMatrix As Matrix(Of Byte) = BitmapToMatrix(oSegmentationBitmap)
+                                                                Using oLabelsSegmentationMatrix As Matrix(Of UShort) = UnconvertUShortLabels(oSegmentationMatrix)
+                                                                    Dim iSegmentationWidth As Integer = oSegmentationMatrix.Width
+                                                                    Dim iSegmentationHeight As Integer = oSegmentationMatrix.Height
 
-                                                    ' create segment dictionary of point locations
-                                                    Dim oSegmentDictionary As New Dictionary(Of Integer, List(Of System.Drawing.Point))
-                                                    For y = 0 To iSegmentationHeight - 1
-                                                        For x = 0 To iSegmentationWidth - 1
-                                                            Dim iLabel As UShort = oLabelsSegmentationMatrix(y, x)
-                                                            If Not oSegmentDictionary.ContainsKey(iLabel) Then
-                                                                oSegmentDictionary.Add(iLabel, New List(Of System.Drawing.Point))
-                                                            End If
+                                                                    ' create segment dictionary of point locations
+                                                                    Dim oSegmentDictionary As New Dictionary(Of Integer, List(Of System.Drawing.Point))
+                                                                    For y = 0 To iSegmentationHeight - 1
+                                                                        For x = 0 To iSegmentationWidth - 1
+                                                                            Dim iLabel As UShort = oLabelsSegmentationMatrix(y, x)
+                                                                            If Not oSegmentDictionary.ContainsKey(iLabel) Then
+                                                                                oSegmentDictionary.Add(iLabel, New List(Of System.Drawing.Point))
+                                                                            End If
 
-                                                            oSegmentDictionary(iLabel).Add(New System.Drawing.Point(x, y))
-                                                        Next
-                                                    Next
+                                                                            oSegmentDictionary(iLabel).Add(New System.Drawing.Point(x, y))
+                                                                        Next
+                                                                    Next
 
-                                                    Dim oCombineAction As Action(Of Object) = Sub(oParam As IO.FileInfo)
-                                                                                                  Using oGroundTruthSegmentationBitmap As New System.Drawing.Bitmap(oParam.FullName)
-                                                                                                      Using oGroundTruthSegmentationMatrix As Matrix(Of Byte) = BitmapToMatrix(oGroundTruthSegmentationBitmap)
-                                                                                                          Using oLabelsGroundTruthSegmentationMatrix As Matrix(Of UShort) = UnconvertUShortLabels(oGroundTruthSegmentationMatrix)
-                                                                                                              Dim oOverlapDictionary As New Dictionary(Of Integer, Dictionary(Of Integer, Integer))
-                                                                                                              For Each oKeyValue In oSegmentDictionary
-                                                                                                                  If Not oOverlapDictionary.ContainsKey(oKeyValue.Key) Then
-                                                                                                                      oOverlapDictionary.Add(oKeyValue.Key, New Dictionary(Of Integer, Integer))
-                                                                                                                  End If
+                                                                    Dim oCombineAction As Action(Of Object) = Sub(oParam As IO.FileInfo)
+                                                                                                                  Using oGroundTruthSegmentationBitmap As New System.Drawing.Bitmap(oParam.FullName)
+                                                                                                                      Using oGroundTruthSegmentationMatrix As Matrix(Of Byte) = BitmapToMatrix(oGroundTruthSegmentationBitmap)
+                                                                                                                          Using oLabelsGroundTruthSegmentationMatrix As Matrix(Of UShort) = UnconvertUShortLabels(oGroundTruthSegmentationMatrix)
+                                                                                                                              Dim oOverlapDictionary As New Dictionary(Of Integer, Dictionary(Of Integer, Integer))
+                                                                                                                              For Each oKeyValue In oSegmentDictionary
+                                                                                                                                  If Not oOverlapDictionary.ContainsKey(oKeyValue.Key) Then
+                                                                                                                                      oOverlapDictionary.Add(oKeyValue.Key, New Dictionary(Of Integer, Integer))
+                                                                                                                                  End If
 
-                                                                                                                  For Each oPoint In oKeyValue.Value
-                                                                                                                      Dim iLabel As UShort = oLabelsGroundTruthSegmentationMatrix(oPoint.Y, oPoint.X)
-                                                                                                                      If Not oOverlapDictionary(oKeyValue.Key).ContainsKey(iLabel) Then
-                                                                                                                          oOverlapDictionary(oKeyValue.Key).Add(iLabel, 0)
-                                                                                                                      End If
-                                                                                                                      oOverlapDictionary(oKeyValue.Key)(iLabel) += 1
-                                                                                                                  Next
-                                                                                                              Next
+                                                                                                                                  For Each oPoint In oKeyValue.Value
+                                                                                                                                      Dim iLabel As UShort = oLabelsGroundTruthSegmentationMatrix(oPoint.Y, oPoint.X)
+                                                                                                                                      If Not oOverlapDictionary(oKeyValue.Key).ContainsKey(iLabel) Then
+                                                                                                                                          oOverlapDictionary(oKeyValue.Key).Add(iLabel, 0)
+                                                                                                                                      End If
+                                                                                                                                      oOverlapDictionary(oKeyValue.Key)(iLabel) += 1
+                                                                                                                                  Next
+                                                                                                                              Next
 
-                                                                                                              Dim oOrderedDictionary As New Dictionary(Of Integer, List(Of KeyValuePair(Of Integer, Integer)))
-                                                                                                              For Each oKeyValue In oOverlapDictionary
-                                                                                                                  If Not oOrderedDictionary.ContainsKey(oKeyValue.Key) Then
-                                                                                                                      oOrderedDictionary.Add(oKeyValue.Key, oKeyValue.Value.ToList.OrderByDescending(Function(x) x.Value).ToList)
-                                                                                                                  End If
-                                                                                                              Next
+                                                                                                                              Dim oOrderedDictionary As New Dictionary(Of Integer, List(Of KeyValuePair(Of Integer, Integer)))
+                                                                                                                              For Each oKeyValue In oOverlapDictionary
+                                                                                                                                  If Not oOrderedDictionary.ContainsKey(oKeyValue.Key) Then
+                                                                                                                                      oOrderedDictionary.Add(oKeyValue.Key, oKeyValue.Value.ToList.OrderByDescending(Function(x) x.Value).ToList)
+                                                                                                                                  End If
+                                                                                                                              Next
 
-                                                                                                              Dim iTotalPoints As Integer = iSegmentationWidth * iSegmentationHeight
-                                                                                                              Dim iUEPoints As Integer = 0
-                                                                                                              Dim iASAPoints As Integer = 0
-                                                                                                              For Each oKeyValue In oOrderedDictionary
-                                                                                                                  If oKeyValue.Value.Count = 1 Then
-                                                                                                                      ' if superpixel is completely contained within segment, then add all points to the ASA count
-                                                                                                                      iASAPoints += oKeyValue.Value.First.Value
-                                                                                                                  Else
-                                                                                                                      ' add the smaller groups to the UE count
-                                                                                                                      For j = 1 To oKeyValue.Value.Count - 1
-                                                                                                                          iUEPoints += oKeyValue.Value(j).Value
-                                                                                                                      Next
+                                                                                                                              Dim iTotalPoints As Integer = iSegmentationWidth * iSegmentationHeight
+                                                                                                                              Dim iUEPoints As Integer = 0
+                                                                                                                              Dim iASAPoints As Integer = 0
+                                                                                                                              For Each oKeyValue In oOrderedDictionary
+                                                                                                                                  If oKeyValue.Value.Count = 1 Then
+                                                                                                                                      ' if superpixel is completely contained within segment, then add all points to the ASA count
+                                                                                                                                      iASAPoints += oKeyValue.Value.First.Value
+                                                                                                                                  Else
+                                                                                                                                      ' add the smaller groups to the UE count
+                                                                                                                                      For j = 1 To oKeyValue.Value.Count - 1
+                                                                                                                                          iUEPoints += oKeyValue.Value(j).Value
+                                                                                                                                      Next
 
-                                                                                                                      ' add the largest group to the ASA count
-                                                                                                                      iASAPoints += oKeyValue.Value.First.Value
-                                                                                                                  End If
-                                                                                                              Next
+                                                                                                                                      ' add the largest group to the ASA count
+                                                                                                                                      iASAPoints += oKeyValue.Value.First.Value
+                                                                                                                                  End If
+                                                                                                                              Next
 
-                                                                                                              oUEList.Add(CSng(iUEPoints) / CSng(iTotalPoints))
-                                                                                                              oASAList.Add(CSng(iASAPoints) / CSng(iTotalPoints))
-                                                                                                          End Using
-                                                                                                      End Using
-                                                                                                  End Using
-                                                                                              End Sub
+                                                                                                                              oUEList.Add(CSng(iUEPoints) / CSng(iTotalPoints))
+                                                                                                                              oASAList.Add(CSng(iASAPoints) / CSng(iTotalPoints))
+                                                                                                                          End Using
+                                                                                                                      End Using
+                                                                                                                  End Using
+                                                                                                              End Sub
 
-                                                    Dim oCombineActionList As New List(Of Tuple(Of Action(Of Object), Object))
-                                                    For Each oGroundTruthSegmentationFile In oGroundTruthSegmentationFiles
-                                                        oCombineActionList.Add(New Tuple(Of Action(Of Object), Object)(oCombineAction, oGroundTruthSegmentationFile))
-                                                    Next
+                                                                    Dim oCombineActionList As New List(Of Tuple(Of Action(Of Object), Object))
+                                                                    For Each oGroundTruthSegmentationFile In oGroundTruthSegmentationFiles
+                                                                        oCombineActionList.Add(New Tuple(Of Action(Of Object), Object)(oCombineAction, oGroundTruthSegmentationFile))
+                                                                    Next
 
-                                                    ProtectedRunTasks(oCombineActionList)
-                                                End Using
-                                            End Using
-                                        End Using
+                                                                    ProtectedRunTasks(oCombineActionList)
+                                                                End Using
+                                                            End Using
+                                                        End Using
+                                                    End If
 
-                                        Dim fBR As Single = If(oBRList.Count = 0, -1, oBRList.Average)
-                                        Dim fUE As Single = If(oUEList.Count = 0, -1, oUEList.Average)
-                                        Dim fASA As Single = If(oASAList.Count = 0, -1, oASAList.Average)
+                                                    Dim fBR As Single = If(oBRList.Count = 0, -1, oBRList.Average)
+                                                    Dim fUE As Single = If(oUEList.Count = 0, -1, oUEList.Average)
+                                                    Dim fASA As Single = If(oASAList.Count = 0, -1, oASAList.Average)
 
-                                        oQCNoise.Results(oImageFile.Name)(iNoise).Add(oType, New Tuple(Of Single, Single, Single)(fBR, fUE, fASA))
-                                    Else
-                                        oQCNoise.Results(oImageFile.Name)(iNoise).Add(oType, New Tuple(Of Single, Single, Single)(-1, -1, -1))
-                                    End If
+                                                    oQCNoise.Results(oImageFile.Name)(iNoise)(oType).Add(iProcessor, New Tuple(Of Single, Single, Single)(fBR, fUE, fASA))
+                                                Else
+                                                    oQCNoise.Results(oImageFile.Name)(iNoise)(oType).Add(iProcessor, New Tuple(Of Single, Single, Single)(-1, -1, -1))
+                                                End If
+                                            End If
+
+                                            iCurrentProcessing += 1
+                                            Console.WriteLine(GetElapsed(oStartDate) + " QCNoise Processing " + iCurrentProcessing.ToString + "/" + iProcessingStepsExt.ToString)
+                                        Next
+                                    Next
+
+                                    SerializeDataContractFile(sQCNoiseFile, oQCNoise, Quantitative.GetKnownTypes, , , False)
+
+                                    Console.WriteLine(GetElapsed(oStartDate) + " Quantitative Check " + sTypeName + " Saved")
                                 End If
-
-                                iCurrentProcessing += 1
-                                Console.WriteLine(GetElapsed(oStartDate) + " QCNoise Processing " + iCurrentProcessing.ToString + "/" + iProcessingSteps.ToString)
                             Next
-                        Next
-
-                        SerializeDataContractFile(sQCNoiseFile, oQCNoise, Quantitative.GetKnownTypes, , , False)
-
-                        Console.WriteLine(GetElapsed(oStartDate) + " Quantitative Check " + sTypeName + " Saved")
+                        End If
                     Next
 #End Region
 
@@ -1115,233 +1435,382 @@ Module ScanSegment
                         oDataDocument.Workbook.Worksheets.Add(ComplexityStr)
                         oDataDocument.Workbook.Worksheets.Add(AltComplexityStr)
                         oDataDocument.Workbook.Worksheets.Add(NoiseStr)
+                        oDataDocument.Workbook.Worksheets.Add(FailureStr)
                         Using oDataSheet As ExcelWorksheet = oDataDocument.Workbook.Worksheets(DataStr)
                             Using oComplexitySheet As ExcelWorksheet = oDataDocument.Workbook.Worksheets(ComplexityStr)
                                 Using oAltComplexitySheet As ExcelWorksheet = oDataDocument.Workbook.Worksheets(AltComplexityStr)
                                     Using oNoiseSheet As ExcelWorksheet = oDataDocument.Workbook.Worksheets(NoiseStr)
-                                        Const iNumColData As Integer = 1
-                                        Const iTypeColData As Integer = 2
-                                        Const iSuperpixelsColData As Integer = 3
-                                        Const iSegmentsColData As Integer = 4
-                                        Const iTimeColData As Integer = 5
-                                        Const iBPColData As Integer = 6
-                                        Const iUEColData As Integer = 7
-                                        Const iASAColData As Integer = 8
+                                        Using oFailureSheet As ExcelWorksheet = oDataDocument.Workbook.Worksheets(FailureStr)
+                                            Const iNumColData As Integer = 1
+                                            Const iTypeColData As Integer = 2
+                                            Const iSuperpixelsColData As Integer = 3
+                                            Const iSegmentsColData As Integer = 4
+                                            Const iTimeColData As Integer = 5
+                                            Const iBPColData As Integer = 6
+                                            Const iUEColData As Integer = 7
+                                            Const iASAColData As Integer = 8
 
-                                        oDataSheet.SetValue(1, iNumColData, NumStr)
-                                        oDataSheet.SetValue(1, iTypeColData, TypeStr)
-                                        oDataSheet.SetValue(1, iSuperpixelsColData, SuperpixelsStr)
-                                        oDataSheet.SetValue(1, iSegmentsColData, SegmentsStr)
-                                        oDataSheet.SetValue(1, iTimeColData, TimeStr)
-                                        oDataSheet.SetValue(1, iBPColData, BPStr)
-                                        oDataSheet.SetValue(1, iUEColData, UEStr)
-                                        oDataSheet.SetValue(1, iASAColData, ASAStr)
+                                            oDataSheet.SetValue(1, iNumColData, NumStr)
+                                            oDataSheet.SetValue(1, iTypeColData, TypeStr)
+                                            oDataSheet.SetValue(1, iSuperpixelsColData, SuperpixelsStr)
+                                            oDataSheet.SetValue(1, iSegmentsColData, SegmentsStr)
+                                            oDataSheet.SetValue(1, iTimeColData, TimeStr)
+                                            oDataSheet.SetValue(1, iBPColData, BPStr)
+                                            oDataSheet.SetValue(1, iUEColData, UEStr)
+                                            oDataSheet.SetValue(1, iASAColData, ASAStr)
 
-                                        Dim iCurrentRow As Integer = 2
-                                        For Each oType In [Enum].GetValues(GetType(SegmentType))
-                                            Dim sTypeName As String = [Enum].GetName(GetType(SegmentType), oType)
+                                            Dim iCurrentRow As Integer = 2
+                                            For Each oType In [Enum].GetValues(GetType(SegmentType))
+                                                If Not m_ExcludeProcess.Contains(oType) Then
+                                                    Dim iProcessorCount As Integer = 1
+                                                    If oType = SegmentType.ScanSegment Then
+                                                        iProcessorCount = ScanSegmentThread.Count
+                                                    End If
+                                                    For iProcessorIndex = 0 To iProcessorCount - 1
+                                                        Dim sTypeName As String = [Enum].GetName(GetType(SegmentType), oType)
+                                                        Dim iProcessor As Integer = -1
+                                                        If oType = SegmentType.ScanSegment Then
+                                                            iProcessor = ScanSegmentThread(iProcessorIndex)
+                                                            sTypeName += "_" + iProcessor.ToString().PadLeft(2, "0")
+                                                        End If
 
-                                            Dim sQCFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "QC_" + sTypeName + ".xml"
-                                            Dim oQC As Quantitative = Nothing
+                                                        Dim sQCFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "QC_" + sTypeName + ".xml"
+                                                        Dim oQC As Quantitative = Nothing
 
-                                            Dim sTimingsFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "Timings_" + sTypeName + ".xml"
-                                            Dim oTimings As Result = Nothing
+                                                        Dim sTimingsFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "Timings_" + sTypeName + ".xml"
+                                                        Dim oTimings As Result = Nothing
 
-                                            Dim sSegmentsFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "Segments_" + sTypeName + ".xml"
-                                            Dim oSegments As Result = Nothing
+                                                        Dim sSegmentsFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "Segments_" + sTypeName + ".xml"
+                                                        Dim oSegments As Result = Nothing
 
-                                            If IO.File.Exists(sTimingsFile) AndAlso IO.File.Exists(sSegmentsFile) AndAlso IO.File.Exists(sQCFile) Then
-                                                oTimings = DeserializeDataContractFile(Of Result)(sTimingsFile, Result.GetKnownTypes, , , False)
-                                                oSegments = DeserializeDataContractFile(Of Result)(sSegmentsFile, Result.GetKnownTypes, , , False)
-                                                oQC = DeserializeDataContractFile(Of Quantitative)(sQCFile, Quantitative.GetKnownTypes, , , False)
+                                                        If IO.File.Exists(sTimingsFile) AndAlso IO.File.Exists(sSegmentsFile) AndAlso IO.File.Exists(sQCFile) Then
+                                                            oTimings = DeserializeDataContractFile(Of Result)(sTimingsFile, Result.GetKnownTypes, , , False)
+                                                            oSegments = DeserializeDataContractFile(Of Result)(sSegmentsFile, Result.GetKnownTypes, , , False)
+                                                            oQC = DeserializeDataContractFile(Of Quantitative)(sQCFile, Quantitative.GetKnownTypes, , , False)
 
-                                                For Each iSuperpixel In SuperpixelList
-                                                    Dim iCount As Integer = 0
-                                                    Dim iTimeTotal As Integer = 0
-                                                    Dim iSegmentsTotal As Integer = 0
-                                                    Dim fBPTotal As Single = 0
-                                                    Dim fUETotal As Single = 0
-                                                    Dim fASATotal As Single = 0
+                                                            For Each iSuperpixel In SuperpixelList
+                                                                Dim iCount As Integer = 0
+                                                                Dim iTimeTotal As Integer = 0
+                                                                Dim iSegmentsTotal As Integer = 0
+                                                                Dim fBPTotal As Single = 0
+                                                                Dim fUETotal As Single = 0
+                                                                Dim fASATotal As Single = 0
 
-                                                    For Each sFileName In oQC.Results.Keys
-                                                        Dim oQCResult As Tuple(Of Single, Single, Single) = oQC.Results(sFileName)(iSuperpixel)(oType)
-                                                        Dim iTime As Integer = oTimings.Results(sFileName)(iSuperpixel)(oType)
-                                                        Dim iSegments As Integer = oSegments.Results(sFileName)(iSuperpixel)(oType)
+                                                                For Each sFileName In oQC.Results.Keys
+                                                                    Dim oQCResult As Tuple(Of Single, Single, Single) = oQC.Results(sFileName)(iSuperpixel)(oType)(iProcessor)
+                                                                    Dim iTime As Integer = oTimings.Results(sFileName)(iSuperpixel)(oType)(iProcessor)
+                                                                    Dim iSegments As Integer = oSegments.Results(sFileName)(iSuperpixel)(oType)(iProcessor)
 
-                                                        iCount += 1
-                                                        iTimeTotal += iTime
-                                                        iSegmentsTotal += iSegments
-                                                        fBPTotal += oQCResult.Item1
-                                                        fUETotal += oQCResult.Item2
-                                                        fASATotal += oQCResult.Item3
-                                                    Next
+                                                                    iCount += 1
+                                                                    iTimeTotal += iTime
+                                                                    iSegmentsTotal += iSegments
+                                                                    fBPTotal += oQCResult.Item1
+                                                                    fUETotal += oQCResult.Item2
+                                                                    fASATotal += oQCResult.Item3
+                                                                Next
 
-                                                    oDataSheet.SetValue(iCurrentRow, iNumColData, iCurrentRow - 1)
-                                                    oDataSheet.SetValue(iCurrentRow, iTypeColData, sTypeName)
-                                                    oDataSheet.SetValue(iCurrentRow, iSuperpixelsColData, iSuperpixel)
-                                                    oDataSheet.SetValue(iCurrentRow, iSegmentsColData, CInt(CSng(iSegmentsTotal) / CSng(iCount)))
-                                                    oDataSheet.SetValue(iCurrentRow, iTimeColData, CInt(CSng(iTimeTotal) / CSng(iCount)))
-                                                    oDataSheet.SetValue(iCurrentRow, iBPColData, fBPTotal / CSng(iCount))
-                                                    oDataSheet.SetValue(iCurrentRow, iUEColData, fUETotal / CSng(iCount))
-                                                    oDataSheet.SetValue(iCurrentRow, iASAColData, fASATotal / CSng(iCount))
-                                                    iCurrentRow += 1
-                                                Next
-                                            End If
-                                        Next
-
-                                        ' autofit columns
-                                        oDataSheet.Cells(oDataSheet.Dimension.Start.Row, oDataSheet.Dimension.Start.Column, oDataSheet.Dimension.End.Row, oDataSheet.Dimension.End.Column).AutoFitColumns()
-
-                                        Const iNumColComplexity As Integer = 1
-                                        Const iTypeColComplexity As Integer = 2
-                                        Const iComplexityColComplexity As Integer = 3
-                                        Const iTimeColComplexity As Integer = 4
-
-                                        oComplexitySheet.SetValue(1, iNumColComplexity, NumStr)
-                                        oComplexitySheet.SetValue(1, iTypeColComplexity, TypeStr)
-                                        oComplexitySheet.SetValue(1, iComplexityColComplexity, ComplexityStr)
-                                        oComplexitySheet.SetValue(1, iTimeColComplexity, TimeStr)
-
-                                        iCurrentRow = 2
-                                        For Each oType In [Enum].GetValues(GetType(SegmentType))
-                                            If oType <> SegmentType.DSFH Then
-                                                Dim sTypeName As String = [Enum].GetName(GetType(SegmentType), oType)
-
-                                                Dim sComplexityFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "Complexity_" + sTypeName + ".xml"
-                                                Dim oComplexity As Result = Nothing
-
-                                                If IO.File.Exists(sComplexityFile) Then
-                                                    oComplexity = DeserializeDataContractFile(Of Result)(sComplexityFile, Result.GetKnownTypes, , , False)
-
-                                                    For Each fComplexity In ComplexityList
-                                                        Dim iComplexity As Integer = CInt(fComplexity * CSng(ComplexityMul))
-                                                        Dim iCount As Integer = 0
-                                                        Dim iTimeTotal As Integer = 0
-
-                                                        For Each sFileName In oComplexity.Results.Keys
-                                                            Dim iTime As Integer = oComplexity.Results(sFileName)(iComplexity)(oType)
-
-                                                            iCount += 1
-                                                            iTimeTotal += iTime
-                                                        Next
-
-                                                        oComplexitySheet.SetValue(iCurrentRow, iNumColComplexity, iCurrentRow - 1)
-                                                        oComplexitySheet.SetValue(iCurrentRow, iTypeColComplexity, sTypeName)
-                                                        oComplexitySheet.SetValue(iCurrentRow, iComplexityColComplexity, fComplexity)
-                                                        oComplexitySheet.SetValue(iCurrentRow, iTimeColComplexity, CInt(CSng(iTimeTotal) / CSng(iCount)))
-                                                        iCurrentRow += 1
+                                                                oDataSheet.SetValue(iCurrentRow, iNumColData, iCurrentRow - 1)
+                                                                oDataSheet.SetValue(iCurrentRow, iTypeColData, sTypeName)
+                                                                oDataSheet.SetValue(iCurrentRow, iSuperpixelsColData, iSuperpixel)
+                                                                oDataSheet.SetValue(iCurrentRow, iSegmentsColData, CInt(CSng(iSegmentsTotal) / CSng(iCount)))
+                                                                oDataSheet.SetValue(iCurrentRow, iTimeColData, CInt(CSng(iTimeTotal) / CSng(iCount)))
+                                                                oDataSheet.SetValue(iCurrentRow, iBPColData, fBPTotal / CSng(iCount))
+                                                                oDataSheet.SetValue(iCurrentRow, iUEColData, fUETotal / CSng(iCount))
+                                                                oDataSheet.SetValue(iCurrentRow, iASAColData, fASATotal / CSng(iCount))
+                                                                iCurrentRow += 1
+                                                            Next
+                                                        End If
                                                     Next
                                                 End If
-                                            End If
-                                        Next
+                                            Next
 
-                                        ' autofit columns
-                                        oComplexitySheet.Cells(oComplexitySheet.Dimension.Start.Row, oComplexitySheet.Dimension.Start.Column, oComplexitySheet.Dimension.End.Row, oComplexitySheet.Dimension.End.Column).AutoFitColumns()
+                                            ' autofit columns
+                                            oDataSheet.Cells(oDataSheet.Dimension.Start.Row, oDataSheet.Dimension.Start.Column, oDataSheet.Dimension.End.Row, oDataSheet.Dimension.End.Column).AutoFitColumns()
 
-                                        oAltComplexitySheet.SetValue(1, iNumColComplexity, NumStr)
-                                        oAltComplexitySheet.SetValue(1, iTypeColComplexity, TypeStr)
-                                        oAltComplexitySheet.SetValue(1, iComplexityColComplexity, ComplexityStr)
-                                        oAltComplexitySheet.SetValue(1, iTimeColComplexity, TimeStr)
+                                            Const iNumColComplexity As Integer = 1
+                                            Const iTypeColComplexity As Integer = 2
+                                            Const iComplexityColComplexity As Integer = 3
+                                            Const iTimeColComplexity As Integer = 4
 
-                                        iCurrentRow = 2
-                                        For Each oType In [Enum].GetValues(GetType(SegmentType))
-                                            If oType <> SegmentType.DSFH Then
-                                                Dim sTypeName As String = [Enum].GetName(GetType(SegmentType), oType)
+                                            oComplexitySheet.SetValue(1, iNumColComplexity, NumStr)
+                                            oComplexitySheet.SetValue(1, iTypeColComplexity, TypeStr)
+                                            oComplexitySheet.SetValue(1, iComplexityColComplexity, ComplexityStr)
+                                            oComplexitySheet.SetValue(1, iTimeColComplexity, TimeStr)
 
-                                                Dim sAltComplexityFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "AltComplexity_" + sTypeName + ".xml"
-                                                Dim oAltComplexity As Result = Nothing
+                                            iCurrentRow = 2
+                                            For Each oType In [Enum].GetValues(GetType(SegmentType))
+                                                If Not m_ExcludeProcess.Contains(oType) Then
+                                                    If oType <> SegmentType.DSFH Then
+                                                        Dim iProcessorCount As Integer = 1
+                                                        If oType = SegmentType.ScanSegment Then
+                                                            iProcessorCount = ScanSegmentThread.Count
+                                                        End If
+                                                        For iProcessorIndex = 0 To iProcessorCount - 1
+                                                            Dim sTypeName As String = [Enum].GetName(GetType(SegmentType), oType)
+                                                            Dim iProcessor As Integer = -1
+                                                            If oType = SegmentType.ScanSegment Then
+                                                                iProcessor = ScanSegmentThread(iProcessorIndex)
+                                                                sTypeName += "_" + iProcessor.ToString().PadLeft(2, "0")
+                                                            End If
 
-                                                If IO.File.Exists(sAltComplexityFile) Then
-                                                    oAltComplexity = DeserializeDataContractFile(Of Result)(sAltComplexityFile, Result.GetKnownTypes, , , False)
+                                                            Dim sComplexityFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "Complexity_" + sTypeName + ".xml"
+                                                            Dim oComplexity As Result = Nothing
 
-                                                    For Each fAltComplexity In ComplexityList
-                                                        Dim fComplexity As Single = fAltComplexity / 8.0
-                                                        Dim iComplexity As Integer = CInt(fComplexity * CSng(ComplexityMul))
-                                                        Dim iCount As Integer = 0
-                                                        Dim iTimeTotal As Integer = 0
+                                                            If IO.File.Exists(sComplexityFile) Then
+                                                                oComplexity = DeserializeDataContractFile(Of Result)(sComplexityFile, Result.GetKnownTypes, , , False)
 
-                                                        For Each sFileName In oAltComplexity.Results.Keys
-                                                            Dim iTime As Integer = oAltComplexity.Results(sFileName)(iComplexity)(oType)
+                                                                For Each fComplexity In ComplexityList
+                                                                    Dim iComplexity As Integer = CInt(fComplexity * CSng(ComplexityMul))
+                                                                    Dim iCount As Integer = 0
+                                                                    Dim iTimeTotal As Integer = 0
 
-                                                            iCount += 1
-                                                            iTimeTotal += iTime
+                                                                    For Each sFileName In oComplexity.Results.Keys
+                                                                        Dim iTime As Integer = oComplexity.Results(sFileName)(iComplexity)(oType)(iProcessor)
+
+                                                                        iCount += 1
+                                                                        iTimeTotal += iTime
+                                                                    Next
+
+                                                                    oComplexitySheet.SetValue(iCurrentRow, iNumColComplexity, iCurrentRow - 1)
+                                                                    oComplexitySheet.SetValue(iCurrentRow, iTypeColComplexity, sTypeName)
+                                                                    oComplexitySheet.SetValue(iCurrentRow, iComplexityColComplexity, fComplexity)
+                                                                    oComplexitySheet.SetValue(iCurrentRow, iTimeColComplexity, CInt(CSng(iTimeTotal) / CSng(iCount)))
+                                                                    iCurrentRow += 1
+                                                                Next
+                                                            End If
                                                         Next
+                                                    End If
+                                                End If
+                                            Next
 
-                                                        oAltComplexitySheet.SetValue(iCurrentRow, iNumColComplexity, iCurrentRow - 1)
-                                                        oAltComplexitySheet.SetValue(iCurrentRow, iTypeColComplexity, sTypeName)
-                                                        oAltComplexitySheet.SetValue(iCurrentRow, iComplexityColComplexity, fComplexity)
-                                                        oAltComplexitySheet.SetValue(iCurrentRow, iTimeColComplexity, CInt(CSng(iTimeTotal) / CSng(iCount)))
-                                                        iCurrentRow += 1
+                                            ' autofit columns
+                                            oComplexitySheet.Cells(oComplexitySheet.Dimension.Start.Row, oComplexitySheet.Dimension.Start.Column, oComplexitySheet.Dimension.End.Row, oComplexitySheet.Dimension.End.Column).AutoFitColumns()
+
+                                            oAltComplexitySheet.SetValue(1, iNumColComplexity, NumStr)
+                                            oAltComplexitySheet.SetValue(1, iTypeColComplexity, TypeStr)
+                                            oAltComplexitySheet.SetValue(1, iComplexityColComplexity, ComplexityStr)
+                                            oAltComplexitySheet.SetValue(1, iTimeColComplexity, TimeStr)
+
+                                            iCurrentRow = 2
+                                            For Each oType In [Enum].GetValues(GetType(SegmentType))
+                                                If Not m_ExcludeProcess.Contains(oType) Then
+                                                    If oType <> SegmentType.DSFH Then
+                                                        Dim iProcessorCount As Integer = 1
+                                                        If oType = SegmentType.ScanSegment Then
+                                                            iProcessorCount = ScanSegmentThread.Count
+                                                        End If
+                                                        For iProcessorIndex = 0 To iProcessorCount - 1
+                                                            Dim sTypeName As String = [Enum].GetName(GetType(SegmentType), oType)
+                                                            Dim iProcessor As Integer = -1
+                                                            If oType = SegmentType.ScanSegment Then
+                                                                iProcessor = ScanSegmentThread(iProcessorIndex)
+                                                                sTypeName += "_" + iProcessor.ToString().PadLeft(2, "0")
+                                                            End If
+
+                                                            Dim sAltComplexityFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "AltComplexity_" + sTypeName + ".xml"
+                                                            Dim oAltComplexity As Result = Nothing
+
+                                                            If IO.File.Exists(sAltComplexityFile) Then
+                                                                oAltComplexity = DeserializeDataContractFile(Of Result)(sAltComplexityFile, Result.GetKnownTypes, , , False)
+
+                                                                For Each fAltComplexity In ComplexityList
+                                                                    Dim fComplexity As Single = fAltComplexity / 8.0
+                                                                    Dim iComplexity As Integer = CInt(fComplexity * CSng(ComplexityMul))
+                                                                    Dim iCount As Integer = 0
+                                                                    Dim iTimeTotal As Integer = 0
+
+                                                                    For Each sFileName In oAltComplexity.Results.Keys
+                                                                        Dim iTime As Integer = oAltComplexity.Results(sFileName)(iComplexity)(oType)(iProcessor)
+
+                                                                        iCount += 1
+                                                                        iTimeTotal += iTime
+                                                                    Next
+
+                                                                    oAltComplexitySheet.SetValue(iCurrentRow, iNumColComplexity, iCurrentRow - 1)
+                                                                    oAltComplexitySheet.SetValue(iCurrentRow, iTypeColComplexity, sTypeName)
+                                                                    oAltComplexitySheet.SetValue(iCurrentRow, iComplexityColComplexity, fComplexity)
+                                                                    oAltComplexitySheet.SetValue(iCurrentRow, iTimeColComplexity, CInt(CSng(iTimeTotal) / CSng(iCount)))
+                                                                    iCurrentRow += 1
+                                                                Next
+                                                            End If
+                                                        Next
+                                                    End If
+                                                End If
+                                            Next
+
+                                            ' autofit columns
+                                            oAltComplexitySheet.Cells(oAltComplexitySheet.Dimension.Start.Row, oAltComplexitySheet.Dimension.Start.Column, oAltComplexitySheet.Dimension.End.Row, oAltComplexitySheet.Dimension.End.Column).AutoFitColumns()
+
+                                            Const iNumColNoise As Integer = 1
+                                            Const iTypeColNoise As Integer = 2
+                                            Const iNoiseColNoise As Integer = 3
+                                            Const iBPColNoise As Integer = 4
+                                            Const iUEColNoise As Integer = 5
+                                            Const iASAColNoise As Integer = 6
+
+                                            oNoiseSheet.SetValue(1, iNumColNoise, NumStr)
+                                            oNoiseSheet.SetValue(1, iTypeColNoise, TypeStr)
+                                            oNoiseSheet.SetValue(1, iNoiseColNoise, NoiseStr)
+                                            oNoiseSheet.SetValue(1, iBPColNoise, BPStr)
+                                            oNoiseSheet.SetValue(1, iUEColNoise, UEStr)
+                                            oNoiseSheet.SetValue(1, iASAColNoise, ASAStr)
+
+                                            iCurrentRow = 2
+                                            For Each oType In [Enum].GetValues(GetType(SegmentType))
+                                                If Not m_ExcludeProcess.Contains(oType) Then
+                                                    Dim iProcessorCount As Integer = 1
+                                                    If oType = SegmentType.ScanSegment Then
+                                                        iProcessorCount = ScanSegmentThread.Count
+                                                    End If
+                                                    For iProcessorIndex = 0 To iProcessorCount - 1
+                                                        Dim sTypeName As String = [Enum].GetName(GetType(SegmentType), oType)
+                                                        Dim iProcessor As Integer = -1
+                                                        If oType = SegmentType.ScanSegment Then
+                                                            iProcessor = ScanSegmentThread(iProcessorIndex)
+                                                            sTypeName += "_" + iProcessor.ToString().PadLeft(2, "0")
+                                                        End If
+
+                                                        Dim sQCNoiseFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "QCNoise_" + sTypeName + ".xml"
+                                                        Dim oQCNoise As Quantitative = Nothing
+
+                                                        If IO.File.Exists(sQCNoiseFile) Then
+                                                            oQCNoise = DeserializeDataContractFile(Of Quantitative)(sQCNoiseFile, Quantitative.GetKnownTypes, , , False)
+
+                                                            For Each fNoise In NoiseList
+                                                                Dim iNoise As Integer = CInt(fNoise * CSng(NoiseMul))
+                                                                Dim iCount As Integer = 0
+                                                                Dim fBPTotal As Single = 0
+                                                                Dim fUETotal As Single = 0
+                                                                Dim fASATotal As Single = 0
+
+                                                                For Each sFileName In oQCNoise.Results.Keys
+                                                                    Dim oQCNoiseResult As Tuple(Of Single, Single, Single) = oQCNoise.Results(sFileName)(iNoise)(oType)(iProcessor)
+
+                                                                    iCount += 1
+                                                                    fBPTotal += oQCNoiseResult.Item1
+                                                                    fUETotal += oQCNoiseResult.Item2
+                                                                    fASATotal += oQCNoiseResult.Item3
+                                                                Next
+
+                                                                oNoiseSheet.SetValue(iCurrentRow, iNumColNoise, iCurrentRow - 1)
+                                                                oNoiseSheet.SetValue(iCurrentRow, iTypeColNoise, sTypeName)
+                                                                oNoiseSheet.SetValue(iCurrentRow, iNoiseColNoise, fNoise)
+                                                                oNoiseSheet.SetValue(iCurrentRow, iBPColNoise, fBPTotal / CSng(iCount))
+                                                                oNoiseSheet.SetValue(iCurrentRow, iUEColNoise, fUETotal / CSng(iCount))
+                                                                oNoiseSheet.SetValue(iCurrentRow, iASAColNoise, fASATotal / CSng(iCount))
+                                                                iCurrentRow += 1
+                                                            Next
+                                                        End If
                                                     Next
                                                 End If
-                                            End If
-                                        Next
+                                            Next
 
-                                        ' autofit columns
-                                        oAltComplexitySheet.Cells(oAltComplexitySheet.Dimension.Start.Row, oAltComplexitySheet.Dimension.Start.Column, oAltComplexitySheet.Dimension.End.Row, oAltComplexitySheet.Dimension.End.Column).AutoFitColumns()
+                                            ' autofit columns
+                                            oNoiseSheet.Cells(oNoiseSheet.Dimension.Start.Row, oNoiseSheet.Dimension.Start.Column, oNoiseSheet.Dimension.End.Row, oNoiseSheet.Dimension.End.Column).AutoFitColumns()
 
-                                        Const iNumColNoise As Integer = 1
-                                        Const iTypeColNoise As Integer = 2
-                                        Const iNoiseColNoise As Integer = 3
-                                        Const iBPColNoise As Integer = 4
-                                        Const iUEColNoise As Integer = 5
-                                        Const iASAColNoise As Integer = 6
+                                            Const iNumColFailure As Integer = 1
+                                            Const iTypeColFailure As Integer = 2
+                                            Const iSuperpixelsColFailure As Integer = 3
+                                            Const iASA70ColFailure As Integer = 4
+                                            Const iASA75ColFailure As Integer = 5
+                                            Const iASA80ColFailure As Integer = 6
+                                            Const iASA85ColFailure As Integer = 7
+                                            Const iASA90ColFailure As Integer = 8
+                                            Const iASA95ColFailure As Integer = 9
 
-                                        oNoiseSheet.SetValue(1, iNumColNoise, NumStr)
-                                        oNoiseSheet.SetValue(1, iTypeColNoise, TypeStr)
-                                        oNoiseSheet.SetValue(1, iNoiseColNoise, NoiseStr)
-                                        oNoiseSheet.SetValue(1, iBPColNoise, BPStr)
-                                        oNoiseSheet.SetValue(1, iUEColNoise, UEStr)
-                                        oNoiseSheet.SetValue(1, iASAColNoise, ASAStr)
+                                            oFailureSheet.SetValue(1, iNumColFailure, NumStr)
+                                            oFailureSheet.SetValue(1, iTypeColFailure, TypeStr)
+                                            oFailureSheet.SetValue(1, iSuperpixelsColFailure, SuperpixelsStr)
+                                            oFailureSheet.SetValue(1, iASA70ColFailure, ASAStr + "70")
+                                            oFailureSheet.SetValue(1, iASA75ColFailure, ASAStr + "75")
+                                            oFailureSheet.SetValue(1, iASA80ColFailure, ASAStr + "80")
+                                            oFailureSheet.SetValue(1, iASA85ColFailure, ASAStr + "85")
+                                            oFailureSheet.SetValue(1, iASA90ColFailure, ASAStr + "90")
+                                            oFailureSheet.SetValue(1, iASA95ColFailure, ASAStr + "95")
 
-                                        iCurrentRow = 2
-                                        For Each oType In [Enum].GetValues(GetType(SegmentType))
-                                            Dim sTypeName As String = [Enum].GetName(GetType(SegmentType), oType)
+                                            iCurrentRow = 2
+                                            For Each oType In [Enum].GetValues(GetType(SegmentType))
+                                                If Not m_ExcludeProcess.Contains(oType) Then
+                                                    Dim iProcessorCount As Integer = 1
+                                                    If oType = SegmentType.ScanSegment Then
+                                                        iProcessorCount = ScanSegmentThread.Count
+                                                    End If
+                                                    For iProcessorIndex = 0 To iProcessorCount - 1
+                                                        Dim sTypeName As String = [Enum].GetName(GetType(SegmentType), oType)
+                                                        Dim iProcessor As Integer = -1
+                                                        If oType = SegmentType.ScanSegment Then
+                                                            iProcessor = ScanSegmentThread(iProcessorIndex)
+                                                            sTypeName += "_" + iProcessor.ToString().PadLeft(2, "0")
+                                                        End If
 
-                                            Dim sQCNoiseFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "QCNoise_" + sTypeName + ".xml"
-                                            Dim oQCNoise As Quantitative = Nothing
+                                                        Dim sQCFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "QC_" + sTypeName + ".xml"
+                                                        Dim oQC As Quantitative = Nothing
 
-                                            If IO.File.Exists(sQCNoiseFile) Then
-                                                oQCNoise = DeserializeDataContractFile(Of Quantitative)(sQCNoiseFile, Quantitative.GetKnownTypes, , , False)
+                                                        If IO.File.Exists(sQCFile) Then
+                                                            oQC = DeserializeDataContractFile(Of Quantitative)(sQCFile, Quantitative.GetKnownTypes, , , False)
 
-                                                For Each fNoise In NoiseList
-                                                    Dim iNoise As Integer = CInt(fNoise * CSng(NoiseMul))
-                                                    Dim iCount As Integer = 0
-                                                    Dim fBPTotal As Single = 0
-                                                    Dim fUETotal As Single = 0
-                                                    Dim fASATotal As Single = 0
+                                                            For Each iSuperpixel In SuperpixelList
+                                                                Dim iCount As Integer = 0
+                                                                Dim iASA70 As Integer = 0
+                                                                Dim iASA75 As Integer = 0
+                                                                Dim iASA80 As Integer = 0
+                                                                Dim iASA85 As Integer = 0
+                                                                Dim iASA90 As Integer = 0
+                                                                Dim iASA95 As Integer = 0
 
-                                                    For Each sFileName In oQCNoise.Results.Keys
-                                                        Dim oQCNoiseResult As Tuple(Of Single, Single, Single) = oQCNoise.Results(sFileName)(iNoise)(oType)
+                                                                For Each sFileName In oQC.Results.Keys
+                                                                    Dim oQCResult As Tuple(Of Single, Single, Single) = oQC.Results(sFileName)(iSuperpixel)(oType)(iProcessor)
 
-                                                        iCount += 1
-                                                        fBPTotal += oQCNoiseResult.Item1
-                                                        fUETotal += oQCNoiseResult.Item2
-                                                        fASATotal += oQCNoiseResult.Item3
+                                                                    iCount += 1
+                                                                    Dim fASA As Single = oQCResult.Item3
+                                                                    If fASA >= 0.7 Then
+                                                                        iASA70 += 1
+                                                                    End If
+                                                                    If fASA >= 0.75 Then
+                                                                        iASA75 += 1
+                                                                    End If
+                                                                    If fASA >= 0.8 Then
+                                                                        iASA80 += 1
+                                                                    End If
+                                                                    If fASA >= 0.85 Then
+                                                                        iASA85 += 1
+                                                                    End If
+                                                                    If fASA >= 0.9 Then
+                                                                        iASA90 += 1
+                                                                    End If
+                                                                    If fASA >= 0.95 Then
+                                                                        iASA95 += 1
+                                                                    End If
+                                                                Next
+
+                                                                oFailureSheet.SetValue(iCurrentRow, iNumColFailure, iCurrentRow - 1)
+                                                                oFailureSheet.SetValue(iCurrentRow, iTypeColFailure, sTypeName)
+                                                                oFailureSheet.SetValue(iCurrentRow, iSuperpixelsColFailure, iSuperpixel)
+                                                                oFailureSheet.SetValue(iCurrentRow, iASA70ColFailure, CSng(iASA70) / CSng(iCount))
+                                                                oFailureSheet.SetValue(iCurrentRow, iASA75ColFailure, CSng(iASA75) / CSng(iCount))
+                                                                oFailureSheet.SetValue(iCurrentRow, iASA80ColFailure, CSng(iASA80) / CSng(iCount))
+                                                                oFailureSheet.SetValue(iCurrentRow, iASA85ColFailure, CSng(iASA85) / CSng(iCount))
+                                                                oFailureSheet.SetValue(iCurrentRow, iASA90ColFailure, CSng(iASA90) / CSng(iCount))
+                                                                oFailureSheet.SetValue(iCurrentRow, iASA95ColFailure, CSng(iASA95) / CSng(iCount))
+                                                                iCurrentRow += 1
+                                                            Next
+                                                        End If
                                                     Next
+                                                End If
+                                            Next
 
-                                                    oNoiseSheet.SetValue(iCurrentRow, iNumColNoise, iCurrentRow - 1)
-                                                    oNoiseSheet.SetValue(iCurrentRow, iTypeColNoise, sTypeName)
-                                                    oNoiseSheet.SetValue(iCurrentRow, iNoiseColNoise, fNoise)
-                                                    oNoiseSheet.SetValue(iCurrentRow, iBPColNoise, fBPTotal / CSng(iCount))
-                                                    oNoiseSheet.SetValue(iCurrentRow, iUEColNoise, fUETotal / CSng(iCount))
-                                                    oNoiseSheet.SetValue(iCurrentRow, iASAColNoise, fASATotal / CSng(iCount))
-                                                    iCurrentRow += 1
-                                                Next
+                                            ' autofit columns
+                                            oFailureSheet.Cells(oFailureSheet.Dimension.Start.Row, oFailureSheet.Dimension.Start.Column, oFailureSheet.Dimension.End.Row, oFailureSheet.Dimension.End.Column).AutoFitColumns()
+
+                                            Dim sDataFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "ScanSegmentData.xlsx"
+                                            Dim oDataInfo As New IO.FileInfo(sDataFile)
+                                            If oDataInfo.Exists Then
+                                                oDataInfo.Delete()
                                             End If
-                                        Next
 
-                                        ' autofit columns
-                                        oNoiseSheet.Cells(oNoiseSheet.Dimension.Start.Row, oNoiseSheet.Dimension.Start.Column, oNoiseSheet.Dimension.End.Row, oNoiseSheet.Dimension.End.Column).AutoFitColumns()
-
-                                        Dim sDataFile As String = oFolderBrowserDialog.SelectedPath + SaveDirectory + "ScanSegmentData.xlsx"
-                                        Dim oDataInfo As New IO.FileInfo(sDataFile)
-                                        If oDataInfo.Exists Then
-                                            oDataInfo.Delete()
-                                        End If
-
-                                        Console.WriteLine(GetElapsed(oStartDate) + " Saving File " + oDataInfo.Name)
-                                        oDataDocument.SaveAs(oDataInfo)
+                                            Console.WriteLine(GetElapsed(oStartDate) + " Saving File " + oDataInfo.Name)
+                                            oDataDocument.SaveAs(oDataInfo)
+                                        End Using
                                     End Using
                                 End Using
                             End Using
@@ -1352,113 +1821,26 @@ Module ScanSegment
             End If
         End If
     End Sub
-    Private Sub ProcessCombinedMultiplier(ByVal oImageFiles As List(Of IO.FileInfo), ByVal oLargeMul As List(Of Integer), ByVal oType As SegmentType, ByVal oStartDate As Date, ByVal oSelectedPath As String)
+    Private Sub ProcessCombinedMultiplier(ByVal oImageFiles As List(Of IO.FileInfo), ByVal oLargeMul As List(Of Integer), ByVal oType As SegmentType, ByVal iProcessor As Integer, ByVal oStartDate As Date, ByVal oSelectedPath As String)
         Dim sTypeName As String = [Enum].GetName(GetType(SegmentType), oType)
+        If oType = SegmentType.ScanSegment Then
+            sTypeName += "_" + iProcessor.ToString().PadLeft(2, "0")
+        End If
+
         Dim sTypeMultiplierFile As String = oSelectedPath + SaveDirectory + "Multipliers_" + sTypeName + ".xml"
         If Not IO.File.Exists(sTypeMultiplierFile) Then
-            Dim oConcurrentMultiplier As New ConcurrentDictionary(Of String, Dictionary(Of Integer, Dictionary(Of SegmentType, Integer)))
+            Dim oConcurrentMultiplier As New ConcurrentDictionary(Of String, Dictionary(Of Integer, Dictionary(Of SegmentType, Dictionary(Of Integer, Integer))))
             Dim oMultiplierWorkList As New ConcurrentBag(Of IO.FileInfo)(oImageFiles)
             Dim iConcurrentProcessing As Integer = 0
             Dim iConcurrentProcessingSteps As Integer = oMultiplierWorkList.Count * SuperpixelList.Count
 
             Dim TaskDelegate As Action(Of Object) = Sub(ByVal oParam As Tuple(Of Integer, IO.FileInfo))
-                                                        Using oBitmap As New System.Drawing.Bitmap(oParam.Item2.FullName)
-                                                            Using oMatrix As Matrix(Of Byte) = BitmapToMatrix(oBitmap)
-                                                                Dim oBounds As New System.Drawing.Rectangle(0, 0, oMatrix.Width, oMatrix.Height)
-                                                                Dim iSegments As Integer = 0
-
-                                                                If Not oConcurrentMultiplier.ContainsKey(oParam.Item2.Name) Then
-                                                                    oConcurrentMultiplier.TryAdd(oParam.Item2.Name, New Dictionary(Of Integer, Dictionary(Of SegmentType, Integer)))
-                                                                End If
-                                                                For Each iSuperpixel In SuperpixelList
-                                                                    If Not oConcurrentMultiplier(oParam.Item2.Name).ContainsKey(iSuperpixel) Then
-                                                                        oConcurrentMultiplier(oParam.Item2.Name).Add(iSuperpixel, New Dictionary(Of SegmentType, Integer))
-                                                                    End If
-
-                                                                    If Not oConcurrentMultiplier(oParam.Item2.Name)(iSuperpixel).ContainsKey(oType) Then
-                                                                        Dim oLargeMulResult As New Dictionary(Of Integer, Integer)
-                                                                        For Each iMul In oLargeMul
-                                                                            Dim oLabels As Matrix(Of Integer) = Nothing
-                                                                            Dim fCurrentMul As Single = CSng(iMul) / CSng(MulFactor)
-                                                                            Segment(oBounds, oMatrix, oLabels, iSuperpixel, fCurrentMul, True, oType, iSegments)
-                                                                            oLargeMulResult.Add(iMul, iSegments)
-
-                                                                            If MatrixNotNothing(oLabels) Then
-                                                                                oLabels.Dispose()
-                                                                                oLabels = Nothing
-                                                                            End If
-                                                                        Next
-
-                                                                        Dim bReversed As Boolean = oLargeMulResult.First.Value > oLargeMulResult.Last.Value
-                                                                        If bReversed Then
-                                                                            Dim iUpperResult As Integer = oLargeMulResult.Last.Key
-                                                                            Dim iLowerResult As Integer = iUpperResult
-                                                                            For i = oLargeMulResult.Count - 2 To 0 Step -1
-                                                                                If oLargeMulResult(oLargeMulResult.Keys(i)) >= iSuperpixel Then
-                                                                                    iLowerResult = oLargeMulResult.Keys(i)
-                                                                                    Exit For
-                                                                                Else
-                                                                                    iUpperResult = oLargeMulResult.Keys(i)
-                                                                                End If
-                                                                            Next
-
-                                                                            For iMul = iUpperResult To iLowerResult Step -(MulStepSmall * MulFactor)
-                                                                                Dim oLabels As Matrix(Of Integer) = Nothing
-
-                                                                                Dim fCurrentMul As Single = CSng(iMul) / CSng(MulFactor)
-                                                                                Segment(oBounds, oMatrix, oLabels, iSuperpixel, fCurrentMul, True, oType, iSegments)
-
-                                                                                If MatrixNotNothing(oLabels) Then
-                                                                                    oLabels.Dispose()
-                                                                                    oLabels = Nothing
-                                                                                End If
-
-                                                                                If iSegments >= iSuperpixel Then
-                                                                                    oConcurrentMultiplier(oParam.Item2.Name)(iSuperpixel).Add(oType, iMul)
-                                                                                    Exit For
-                                                                                End If
-                                                                            Next
-                                                                        Else
-                                                                            Dim iLowerResult As Integer = oLargeMulResult.First.Key
-                                                                            Dim iUpperResult As Integer = iLowerResult
-                                                                            For i = 1 To oLargeMulResult.Count - 1
-                                                                                If oLargeMulResult(oLargeMulResult.Keys(i)) >= iSuperpixel Then
-                                                                                    iUpperResult = oLargeMulResult.Keys(i)
-                                                                                    Exit For
-                                                                                Else
-                                                                                    iLowerResult = oLargeMulResult.Keys(i)
-                                                                                End If
-                                                                            Next
-
-                                                                            For iMul = iLowerResult To iUpperResult Step (MulStepSmall * MulFactor)
-                                                                                Dim oLabels As Matrix(Of Integer) = Nothing
-
-                                                                                Dim fCurrentMul As Single = CSng(iMul) / CSng(MulFactor)
-                                                                                Segment(oBounds, oMatrix, oLabels, iSuperpixel, fCurrentMul, True, oType, iSegments)
-
-                                                                                If MatrixNotNothing(oLabels) Then
-                                                                                    oLabels.Dispose()
-                                                                                    oLabels = Nothing
-                                                                                End If
-
-                                                                                If iSegments >= iSuperpixel Then
-                                                                                    oConcurrentMultiplier(oParam.Item2.Name)(iSuperpixel).Add(oType, iMul)
-                                                                                    Exit For
-                                                                                End If
-                                                                            Next
-                                                                        End If
-                                                                    End If
-
-                                                                    Dim iConcurrentProcessingLocal As Integer = System.Threading.Interlocked.Increment(iConcurrentProcessing)
-                                                                    Console.WriteLine(GetElapsed(oStartDate) + " Preprocessing " + iConcurrentProcessingLocal.ToString + "/" + iConcurrentProcessingSteps.ToString + ": " + [Enum].GetName(GetType(SegmentType), oType))
-                                                                Next
-                                                            End Using
-                                                        End Using
+                                                        ProcessCombinedDelegate(oParam, oConcurrentMultiplier, oLargeMul, oType, iProcessor, oStartDate, iConcurrentProcessing, iConcurrentProcessingSteps)
                                                     End Sub
 
             If m_SingleProcess.Contains(oType) Then
                 For i = 0 To oMultiplierWorkList.Count - 1
-                    TaskDelegate.Invoke(New Tuple(Of Integer, IO.FileInfo)(i, oMultiplierWorkList(i)))
+                    ProcessCombinedDelegate(New Tuple(Of Integer, IO.FileInfo)(i, oMultiplierWorkList(i)), oConcurrentMultiplier, oLargeMul, oType, iProcessor, oStartDate, iConcurrentProcessing, iConcurrentProcessingSteps)
                 Next
             Else
                 ParallelProcess(oMultiplierWorkList.ToList, TaskDelegate, AddressOf UpdateTasks, AddressOf CPUUtilisation, 4, 8)
@@ -1466,13 +1848,16 @@ Module ScanSegment
 
             Dim oTypeMultiplier As New Result
             For Each oKeyValue1 In oConcurrentMultiplier
-                oTypeMultiplier.Results.Add(oKeyValue1.Key, New Dictionary(Of Integer, Dictionary(Of SegmentType, Integer)))
+                oTypeMultiplier.Results.Add(oKeyValue1.Key, New Dictionary(Of Integer, Dictionary(Of SegmentType, Dictionary(Of Integer, Integer))))
                 For Each oKeyValue2 In oKeyValue1.Value
-                    oTypeMultiplier.Results(oKeyValue1.Key).Add(oKeyValue2.Key, New Dictionary(Of SegmentType, Integer))
+                    oTypeMultiplier.Results(oKeyValue1.Key).Add(oKeyValue2.Key, New Dictionary(Of SegmentType, Dictionary(Of Integer, Integer)))
                     For Each oKeyValue3 In oKeyValue2.Value
-                        If oKeyValue3.Key = oType Then
-                            oTypeMultiplier.Results(oKeyValue1.Key)(oKeyValue2.Key).Add(oKeyValue3.Key, oKeyValue3.Value)
-                        End If
+                        oTypeMultiplier.Results(oKeyValue1.Key)(oKeyValue2.Key).Add(oKeyValue3.Key, New Dictionary(Of Integer, Integer))
+                        For Each oKeyValue4 In oKeyValue3.Value
+                            If oKeyValue4.Key = iProcessor Then
+                                oTypeMultiplier.Results(oKeyValue1.Key)(oKeyValue2.Key)(oKeyValue3.Key).Add(oKeyValue4.Key, oKeyValue4.Value)
+                            End If
+                        Next
                     Next
                 Next
             Next
@@ -1481,62 +1866,118 @@ Module ScanSegment
             Console.WriteLine(GetElapsed(oStartDate) + " Multiplier " + sTypeName + " Saved")
         End If
     End Sub
-    Private Sub ProcessMultipler(ByVal oMultiplierWorkList As List(Of IO.FileInfo), ByVal oLargeMul As List(Of Integer), ByVal oType As SegmentType, ByVal oStartDate As Date, ByVal oSelectedPath As String)
-        Dim oMultiplier As New Dictionary(Of String, Dictionary(Of Integer, Dictionary(Of SegmentType, Integer)))
-        Dim iProcessing As Integer = 0
-        Dim iProcessingSteps As Integer = oMultiplierWorkList.Count * SuperpixelList.Count
-        For Each oFileInfo In oMultiplierWorkList
-            Using oBitmap As New System.Drawing.Bitmap(oFileInfo.FullName)
-                Using oMatrix As Matrix(Of Byte) = BitmapToMatrix(oBitmap)
-                    Dim oBounds As New System.Drawing.Rectangle(0, 0, oMatrix.Width, oMatrix.Height)
-                    Dim iSegments As Integer = 0
+    Private Sub ProcessCombinedDelegate(ByVal oParam As Tuple(Of Integer, IO.FileInfo),
+                                        ByRef oConcurrentMultiplier As ConcurrentDictionary(Of String, Dictionary(Of Integer, Dictionary(Of SegmentType, Dictionary(Of Integer, Integer)))),
+                                        ByVal oLargeMul As List(Of Integer),
+                                        ByVal oType As SegmentType,
+                                        ByVal iProcessor As Integer,
+                                        ByVal oStartDate As Date,
+                                        ByRef iConcurrentProcessing As Integer,
+                                        ByVal iConcurrentProcessingSteps As Integer)
+        Using oBitmap As New System.Drawing.Bitmap(oParam.Item2.FullName)
+            Using oMatrix As Matrix(Of Byte) = BitmapToMatrix(oBitmap)
+                Dim oBounds As New System.Drawing.Rectangle(0, 0, oMatrix.Width, oMatrix.Height)
+                Dim iSegments As Integer = 0
 
-                    If Not oMultiplier.ContainsKey(oFileInfo.Name) Then
-                        oMultiplier.Add(oFileInfo.Name, New Dictionary(Of Integer, Dictionary(Of SegmentType, Integer)))
+                If Not oConcurrentMultiplier.ContainsKey(oParam.Item2.Name) Then
+                    oConcurrentMultiplier.TryAdd(oParam.Item2.Name, New Dictionary(Of Integer, Dictionary(Of SegmentType, Dictionary(Of Integer, Integer))))
+                End If
+                For Each iSuperpixel In SuperpixelList
+                    If Not oConcurrentMultiplier(oParam.Item2.Name).ContainsKey(iSuperpixel) Then
+                        oConcurrentMultiplier(oParam.Item2.Name).Add(iSuperpixel, New Dictionary(Of SegmentType, Dictionary(Of Integer, Integer)))
                     End If
-                    For Each iSuperpixel In SuperpixelList
-                        If Not oMultiplier(oFileInfo.Name).ContainsKey(iSuperpixel) Then
-                            oMultiplier(oFileInfo.Name).Add(iSuperpixel, New Dictionary(Of SegmentType, Integer))
-                        End If
-
-                        If Not oMultiplier(oFileInfo.Name)(iSuperpixel).ContainsKey(oType) Then
-                            Dim iMul As Integer = GetMultiplier(oLargeMul, oBounds, oMatrix, iSuperpixel, oType, iSegments)
-                            oMultiplier(oFileInfo.Name)(iSuperpixel).Add(oType, iMul)
-                        End If
-
-                        Console.WriteLine(GetElapsed(oStartDate) + " Preprocessing " + iProcessing.ToString + "/" + iProcessingSteps.ToString + ": " + [Enum].GetName(GetType(SegmentType), oType))
-                        iProcessing += 1
-                    Next
-                End Using
-            End Using
-        Next
-
-        Dim oTypeMultiplier As New Result
-        For Each oKeyValue1 In oMultiplier
-            oTypeMultiplier.Results.Add(oKeyValue1.Key, New Dictionary(Of Integer, Dictionary(Of SegmentType, Integer)))
-            For Each oKeyValue2 In oKeyValue1.Value
-                oTypeMultiplier.Results(oKeyValue1.Key).Add(oKeyValue2.Key, New Dictionary(Of SegmentType, Integer))
-                For Each oKeyValue3 In oKeyValue2.Value
-                    If oKeyValue3.Key = oType Then
-                        oTypeMultiplier.Results(oKeyValue1.Key)(oKeyValue2.Key).Add(oKeyValue3.Key, oKeyValue3.Value)
+                    If Not oConcurrentMultiplier(oParam.Item2.Name)(iSuperpixel).ContainsKey(oType) Then
+                        oConcurrentMultiplier(oParam.Item2.Name)(iSuperpixel).Add(oType, New Dictionary(Of Integer, Integer))
                     End If
+
+                    If Not oConcurrentMultiplier(oParam.Item2.Name)(iSuperpixel)(oType).ContainsKey(iProcessor) Then
+                        Dim oLargeMulResult As New Dictionary(Of Integer, Integer)
+                        For Each iMul In oLargeMul
+                            Dim oLabels As Matrix(Of Integer) = Nothing
+                            Dim fCurrentMul As Single = CSng(iMul) / CSng(MulFactor)
+                            Segment(oBounds, oMatrix, oLabels, iSuperpixel, fCurrentMul, True, oType, iProcessor, iSegments)
+                            oLargeMulResult.Add(iMul, iSegments)
+
+                            If MatrixNotNothing(oLabels) Then
+                                oLabels.Dispose()
+                                oLabels = Nothing
+                            End If
+                        Next
+
+                        Dim bReversed As Boolean = oLargeMulResult.First.Value > oLargeMulResult.Last.Value
+                        If bReversed Then
+                            Dim iUpperResult As Integer = oLargeMulResult.Last.Key
+                            Dim iLowerResult As Integer = iUpperResult
+                            For i = oLargeMulResult.Count - 2 To 0 Step -1
+                                If oLargeMulResult(oLargeMulResult.Keys(i)) >= iSuperpixel Then
+                                    iLowerResult = oLargeMulResult.Keys(i)
+                                    Exit For
+                                Else
+                                    iUpperResult = oLargeMulResult.Keys(i)
+                                End If
+                            Next
+
+                            For iMul = iUpperResult To iLowerResult Step -(MulStepSmall * MulFactor)
+                                Dim oLabels As Matrix(Of Integer) = Nothing
+
+                                Dim fCurrentMul As Single = CSng(iMul) / CSng(MulFactor)
+                                Segment(oBounds, oMatrix, oLabels, iSuperpixel, fCurrentMul, True, oType, iProcessor, iSegments)
+
+                                If MatrixNotNothing(oLabels) Then
+                                    oLabels.Dispose()
+                                    oLabels = Nothing
+                                End If
+
+                                If iSegments >= iSuperpixel Then
+                                    oConcurrentMultiplier(oParam.Item2.Name)(iSuperpixel)(oType).Add(iProcessor, iMul)
+                                    Exit For
+                                End If
+                            Next
+                        Else
+                            Dim iLowerResult As Integer = oLargeMulResult.First.Key
+                            Dim iUpperResult As Integer = iLowerResult
+                            For i = 1 To oLargeMulResult.Count - 1
+                                If oLargeMulResult(oLargeMulResult.Keys(i)) >= iSuperpixel Then
+                                    iUpperResult = oLargeMulResult.Keys(i)
+                                    Exit For
+                                Else
+                                    iLowerResult = oLargeMulResult.Keys(i)
+                                End If
+                            Next
+
+                            For iMul = iLowerResult To iUpperResult Step (MulStepSmall * MulFactor)
+                                Dim oLabels As Matrix(Of Integer) = Nothing
+
+                                Dim fCurrentMul As Single = CSng(iMul) / CSng(MulFactor)
+                                Segment(oBounds, oMatrix, oLabels, iSuperpixel, fCurrentMul, True, oType, iProcessor, iSegments)
+
+                                If MatrixNotNothing(oLabels) Then
+                                    oLabels.Dispose()
+                                    oLabels = Nothing
+                                End If
+
+                                If iSegments >= iSuperpixel Then
+                                    oConcurrentMultiplier(oParam.Item2.Name)(iSuperpixel)(oType).Add(iProcessor, iMul)
+                                    Exit For
+                                End If
+                            Next
+                        End If
+                    End If
+
+                    Dim iConcurrentProcessingLocal As Integer = System.Threading.Interlocked.Increment(iConcurrentProcessing)
+                    Console.WriteLine(GetElapsed(oStartDate) + " Preprocessing " + iConcurrentProcessingLocal.ToString + "/" + iConcurrentProcessingSteps.ToString + ": " + [Enum].GetName(GetType(SegmentType), oType))
                 Next
-            Next
-        Next
-
-        Dim sTypeName As String = [Enum].GetName(GetType(SegmentType), oType)
-        Dim sTypeMultiplierFile As String = oSelectedPath + SaveDirectory + "Multipliers_" + sTypeName + ".xml"
-        SerializeDataContractFile(sTypeMultiplierFile, oTypeMultiplier, Result.GetKnownTypes, , , False)
-        Console.WriteLine(GetElapsed(oStartDate) + " Multiplier " + sTypeName + " Saved")
+            End Using
+        End Using
     End Sub
-    Private Function GetMultiplier(ByVal oLargeMul As List(Of Integer), ByVal oBounds As System.Drawing.Rectangle, ByVal oMatrix As Matrix(Of Byte), ByVal iSuperpixel As Integer, ByVal oType As SegmentType, ByRef iSegments As Integer) As Integer
+    Private Function GetMultiplier(ByVal oLargeMul As List(Of Integer), ByVal oBounds As System.Drawing.Rectangle, ByVal oMatrix As Matrix(Of Byte), ByVal iSuperpixel As Integer, ByVal oType As SegmentType, ByVal iProcessor As Integer, ByRef iSegments As Integer) As Integer
         ' gets multiplier for type
         Dim iReturnMul As Integer = 0
         Dim oLargeMulResult As New Dictionary(Of Integer, Integer)
         For Each iMul In oLargeMul
             Dim oLabels As Matrix(Of Integer) = Nothing
             Dim fCurrentMul As Single = CSng(iMul) / CSng(MulFactor)
-            Segment(oBounds, oMatrix, oLabels, iSuperpixel, fCurrentMul, True, oType, iSegments)
+            Segment(oBounds, oMatrix, oLabels, iSuperpixel, fCurrentMul, True, oType, iProcessor, iSegments)
             oLargeMulResult.Add(iMul, iSegments)
 
             If MatrixNotNothing(oLabels) Then
@@ -1566,7 +2007,7 @@ Module ScanSegment
                     Dim oLabels As Matrix(Of Integer) = Nothing
 
                     Dim fCurrentMul As Single = CSng(iMul) / CSng(MulFactor)
-                    Segment(oBounds, oMatrix, oLabels, iSuperpixel, fCurrentMul, True, oType, iSegments)
+                    Segment(oBounds, oMatrix, oLabels, iSuperpixel, fCurrentMul, True, oType, iProcessor, iSegments)
 
                     If MatrixNotNothing(oLabels) Then
                         oLabels.Dispose()
@@ -1599,7 +2040,7 @@ Module ScanSegment
                     Dim oLabels As Matrix(Of Integer) = Nothing
 
                     Dim fCurrentMul As Single = CSng(iMul) / CSng(MulFactor)
-                    Segment(oBounds, oMatrix, oLabels, iSuperpixel, fCurrentMul, True, oType, iSegments)
+                    Segment(oBounds, oMatrix, oLabels, iSuperpixel, fCurrentMul, True, oType, iProcessor, iSegments)
 
                     If MatrixNotNothing(oLabels) Then
                         oLabels.Dispose()
@@ -1615,7 +2056,7 @@ Module ScanSegment
         End If
         Return iReturnMul
     End Function
-    Private Function Segment(ByVal oBounds As System.Drawing.Rectangle, ByVal oMatrixIn As Matrix(Of Byte), ByRef oLabelsOut As Matrix(Of Integer), ByVal iSuperpixels As Integer, ByVal fMultiplier As Single, ByVal bMerge As Boolean, ByVal oType As SegmentType, ByRef iSegments As Integer) As Integer
+    Private Function Segment(ByVal oBounds As System.Drawing.Rectangle, ByVal oMatrixIn As Matrix(Of Byte), ByRef oLabelsOut As Matrix(Of Integer), ByVal iSuperpixels As Integer, ByVal fMultiplier As Single, ByVal bMerge As Boolean, ByVal oType As SegmentType, ByVal iProcessor As Integer, ByRef iSegments As Integer) As Integer
         Dim oCroppedBounds = System.Drawing.Rectangle.Intersect(oBounds, New System.Drawing.Rectangle(0, 0, oMatrixIn.Width, oMatrixIn.Height))
 
         If MatrixNotNothing(oLabelsOut) Then
@@ -1639,7 +2080,7 @@ Module ScanSegment
         Dim oLabelsBufferHandleOut As GCHandle = GCHandle.Alloc(oLabelsBufferOut, GCHandleType.Pinned)
 
         Dim iDuration As Int32 = 0
-        iSegments = segment(oMatPointerIn, oMatBufferHandleIn.AddrOfPinnedObject, oLabelsPointerOut, oLabelsBufferHandleOut.AddrOfPinnedObject, oCroppedBounds.X, oCroppedBounds.Y, oCroppedBounds.Width, oCroppedBounds.Height, iSuperpixels, fMultiplier, bMerge, oType, iDuration)
+        iSegments = segment(oMatPointerIn, oMatBufferHandleIn.AddrOfPinnedObject, oLabelsPointerOut, oLabelsBufferHandleOut.AddrOfPinnedObject, oCroppedBounds.X, oCroppedBounds.Y, oCroppedBounds.Width, oCroppedBounds.Height, iSuperpixels, fMultiplier, bMerge, oType, iProcessor, iDuration)
 
         Marshal.FreeCoTaskMem(oMatPointerIn)
         oMatBufferHandleIn.Free()
@@ -2025,29 +2466,43 @@ Module ScanSegment
         Else
             Dim oReturnMatrix As Matrix(Of Byte) = Nothing
             Dim oRectangle As New System.Drawing.Rectangle(0, 0, oBitmap.Width, oBitmap.Height)
-            Dim oBitmapData As System.Drawing.Imaging.BitmapData = oBitmap.LockBits(oRectangle, System.Drawing.Imaging.ImageLockMode.ReadOnly, oBitmap.PixelFormat)
-
             Select Case oBitmap.PixelFormat
+                Case System.Drawing.Imaging.PixelFormat.Format1bppIndexed
+                    Using oConvertedBitmap As New System.Drawing.Bitmap(oBitmap.Width, oBitmap.Height, System.Drawing.Imaging.PixelFormat.Format24bppRgb)
+                        Using oGraphics As System.Drawing.Graphics = System.Drawing.Graphics.FromImage(oConvertedBitmap)
+                            oGraphics.DrawImage(oBitmap, 0, 0, oConvertedBitmap.Width, oConvertedBitmap.Height)
+                            Dim oConvertedData As System.Drawing.Imaging.BitmapData = oConvertedBitmap.LockBits(oRectangle, System.Drawing.Imaging.ImageLockMode.ReadOnly, oConvertedBitmap.PixelFormat)
+                            Using oMat As New Mat(oConvertedBitmap.Height, oConvertedBitmap.Width, CvEnum.DepthType.Cv8U, 3, oConvertedData.Scan0, oConvertedData.Stride)
+                                oReturnMatrix = New Matrix(Of Byte)(oConvertedBitmap.Height, oConvertedBitmap.Width, 1)
+                                CvInvoke.CvtColor(oMat, oReturnMatrix, CvEnum.ColorConversion.Rgb2Gray)
+                            End Using
+                            oConvertedBitmap.UnlockBits(oConvertedData)
+                        End Using
+                    End Using
                 Case System.Drawing.Imaging.PixelFormat.Format8bppIndexed
+                    Dim oBitmapData As System.Drawing.Imaging.BitmapData = oBitmap.LockBits(oRectangle, System.Drawing.Imaging.ImageLockMode.ReadOnly, oBitmap.PixelFormat)
                     Using oMat As New Mat(oBitmap.Height, oBitmap.Width, CvEnum.DepthType.Cv8U, 1, oBitmapData.Scan0, oBitmapData.Stride)
                         oReturnMatrix = New Matrix(Of Byte)(oBitmap.Height, oBitmap.Width, 1)
                         oMat.CopyTo(oReturnMatrix)
                     End Using
+                    oBitmap.UnlockBits(oBitmapData)
                 Case System.Drawing.Imaging.PixelFormat.Format24bppRgb
+                    Dim oBitmapData As System.Drawing.Imaging.BitmapData = oBitmap.LockBits(oRectangle, System.Drawing.Imaging.ImageLockMode.ReadOnly, oBitmap.PixelFormat)
                     Using oMat As New Mat(oBitmap.Height, oBitmap.Width, CvEnum.DepthType.Cv8U, 3, oBitmapData.Scan0, oBitmapData.Stride)
                         oReturnMatrix = New Matrix(Of Byte)(oBitmap.Height, oBitmap.Width, 3)
                         oMat.CopyTo(oReturnMatrix)
                     End Using
+                    oBitmap.UnlockBits(oBitmapData)
                 Case System.Drawing.Imaging.PixelFormat.Format32bppArgb
+                    Dim oBitmapData As System.Drawing.Imaging.BitmapData = oBitmap.LockBits(oRectangle, System.Drawing.Imaging.ImageLockMode.ReadOnly, oBitmap.PixelFormat)
                     Using oMat As New Mat(oBitmap.Height, oBitmap.Width, CvEnum.DepthType.Cv8U, 4, oBitmapData.Scan0, oBitmapData.Stride)
                         oReturnMatrix = New Matrix(Of Byte)(oBitmap.Height, oBitmap.Width, 3)
                         CvInvoke.CvtColor(oMat, oReturnMatrix, CvEnum.ColorConversion.Bgra2Bgr)
                     End Using
+                    oBitmap.UnlockBits(oBitmapData)
                 Case Else
                     Return Nothing
             End Select
-
-            oBitmap.UnlockBits(oBitmapData)
 
             Return oReturnMatrix
         End If
@@ -2076,6 +2531,13 @@ Module ScanSegment
             End Try
         End If
     End Sub
+    Private Function LoadMatrix(ByVal sFileName As String) As Matrix(Of Byte)
+        ' save matrix to TIFF file
+        Using oBitmap As New System.Drawing.Bitmap(sFileName)
+            Dim oMatrix As Matrix(Of Byte) = BitmapToMatrix(oBitmap)
+            Return oMatrix
+        End Using
+    End Function
     Private Function MatrixToBitmapSource(ByVal oMatrix As Matrix(Of Byte), Optional DPI As Single = Resolution096) As BitmapSource
         ' converts matrix data to an array which takes into account the bitmap stride
         If IsNothing(oMatrix) Then
@@ -2407,26 +2869,35 @@ Module ScanSegment
         Outline
         OutlineOnly
     End Enum
+    Enum DatasetType
+        Unknown
+        BSD
+        iCogseg
+    End Enum
     <DataContract()> Public Class Result
-        <DataMember> Public Results As Dictionary(Of String, Dictionary(Of Integer, Dictionary(Of SegmentType, Integer)))
+        <DataMember> Public Results As Dictionary(Of String, Dictionary(Of Integer, Dictionary(Of SegmentType, Dictionary(Of Integer, Integer))))
 
         Sub New()
-            Results = New Dictionary(Of String, Dictionary(Of Integer, Dictionary(Of SegmentType, Integer)))
+            Results = New Dictionary(Of String, Dictionary(Of Integer, Dictionary(Of SegmentType, Dictionary(Of Integer, Integer))))
         End Sub
         Public Shared Function GetKnownTypes() As List(Of Type)
             ' returns the list of additonal types
-            Return New List(Of Type) From {GetType(SegmentType), GetType(Dictionary(Of SegmentType, Integer)), GetType(Dictionary(Of Integer, Dictionary(Of SegmentType, Integer))), GetType(Dictionary(Of String, Dictionary(Of Integer, Dictionary(Of SegmentType, Integer))))}
+            Return New List(Of Type) From {GetType(SegmentType), GetType(Dictionary(Of Integer, Integer)), GetType(Dictionary(Of SegmentType, Dictionary(Of Integer, Integer))),
+                GetType(Dictionary(Of Integer, Dictionary(Of SegmentType, Dictionary(Of Integer, Integer)))), GetType(Dictionary(Of String, Dictionary(Of Integer, Dictionary(Of SegmentType, Dictionary(Of Integer, Integer)))))}
         End Function
     End Class
     <DataContract()> Public Class Quantitative
-        <DataMember> Public Results As Dictionary(Of String, Dictionary(Of Integer, Dictionary(Of SegmentType, Tuple(Of Single, Single, Single))))
+        <DataMember> Public Results As Dictionary(Of String, Dictionary(Of Integer, Dictionary(Of SegmentType, Dictionary(Of Integer, Tuple(Of Single, Single, Single)))))
 
         Sub New()
-            Results = New Dictionary(Of String, Dictionary(Of Integer, Dictionary(Of SegmentType, Tuple(Of Single, Single, Single))))
+            Results = New Dictionary(Of String, Dictionary(Of Integer, Dictionary(Of SegmentType, Dictionary(Of Integer, Tuple(Of Single, Single, Single)))))
         End Sub
         Public Shared Function GetKnownTypes() As List(Of Type)
             ' returns the list of additonal types
-            Return New List(Of Type) From {GetType(SegmentType), GetType(Tuple(Of Single, Single, Single)), GetType(Dictionary(Of SegmentType, Tuple(Of Single, Single, Single))), GetType(Dictionary(Of Integer, Dictionary(Of SegmentType, Tuple(Of Single, Single, Single)))), GetType(Dictionary(Of String, Dictionary(Of Integer, Dictionary(Of SegmentType, Tuple(Of Single, Single, Single)))))}
+            Return New List(Of Type) From {GetType(SegmentType), GetType(Tuple(Of Single, Single, Single)),
+                GetType(Dictionary(Of Integer, Tuple(Of Single, Single, Single))), GetType(Dictionary(Of SegmentType, Dictionary(Of Integer, Tuple(Of Single, Single, Single)))),
+                GetType(Dictionary(Of Integer, Dictionary(Of SegmentType, Dictionary(Of Integer, Tuple(Of Single, Single, Single))))),
+                GetType(Dictionary(Of String, Dictionary(Of Integer, Dictionary(Of SegmentType, Dictionary(Of Integer, Tuple(Of Single, Single, Single))))))}
         End Function
     End Class
     Public Class SingleSmoothing
@@ -2608,7 +3079,7 @@ Module ScanSegment
     End Sub
     <DllImport("ScanSegmentC.dll", EntryPoint:="exitScan", CallingConvention:=CallingConvention.StdCall)> Private Sub exitScan()
     End Sub
-    <DllImport("ScanSegmentC.dll", EntryPoint:="segment", CallingConvention:=CallingConvention.StdCall)> Private Function segment(ByVal oImgStructIn As IntPtr, ByVal oImgBufferIn As IntPtr, ByVal oLabelsStructOut As IntPtr, ByVal oLabelsBufferOut As IntPtr, ByVal boundsx As Int32, ByVal boundsy As Int32, ByVal boundswidth As Int32, ByVal boundsheight As Int32, ByVal superpixels As Int32, ByVal multiplier As Single, ByVal merge As Boolean, ByVal type As Int32, ByRef duration As Int32) As Int32
+    <DllImport("ScanSegmentC.dll", EntryPoint:="segment", CallingConvention:=CallingConvention.StdCall)> Private Function segment(ByVal oImgStructIn As IntPtr, ByVal oImgBufferIn As IntPtr, ByVal oLabelsStructOut As IntPtr, ByVal oLabelsBufferOut As IntPtr, ByVal boundsx As Int32, ByVal boundsy As Int32, ByVal boundswidth As Int32, ByVal boundsheight As Int32, ByVal superpixels As Int32, ByVal multiplier As Single, ByVal merge As Boolean, ByVal type As Int32, ByVal processor As Int32, ByRef duration As Int32) As Int32
     End Function
 #End Region
 End Module
