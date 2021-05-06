@@ -24,7 +24,7 @@ extern "C" SCANSEGMENT_API void initScan();
 
 extern "C" SCANSEGMENT_API void exitScan();
 
-extern "C" SCANSEGMENT_API int segment(BYTE* imgstruct_in, BYTE* imgbuffer_in, BYTE* imgstructlabels_out, BYTE* imgbufferlabels_out, int boundsx, int boundsy, int boundswidth, int boundsheight, int superpixels, float multiplier, bool merge, int type, int* duration);
+extern "C" SCANSEGMENT_API int segment(BYTE* imgstruct_in, BYTE* imgbuffer_in, BYTE* imgstructlabels_out, BYTE* imgbufferlabels_out, int boundsx, int boundsy, int boundswidth, int boundsheight, int superpixels, float multiplier, bool merge, int type, int processor, int* duration);
 
 #ifndef DBSCAN_H
 #define DBSCAN_H
@@ -94,7 +94,7 @@ public:
 	ScanSegment(int concurrentthreads);
 	~ScanSegment();
 
-	int segment(const cv::Mat& mat, const cv::Rect& bounds, cv::Mat* labelsMat, int superpixels, float multiplier, bool merge);
+	int segment(const cv::Mat& mat, const cv::Rect& bounds, cv::Mat* labelsMat, int superpixels, float multiplier, bool merge, int processor);
 
 private:
 	static const int neighbourCount = 8;							// number of pixel neighbours
@@ -104,6 +104,7 @@ private:
 	static const int parallelLimit = 100;							// processing above this limit should be parallelised
 	const float tolerance100 = 10.0f;								// colour tolerance for image size of 100x100px
 	int concurrentthreads = 4;										// number of simultaneous concurrent threads
+	int processthreads = 4;											// number of simultaneous process threads
 	int indexSize = 0;												// size of label mat vector
 	int clusterSize = 0;											// max size of clusters
 	int smallClusters = 0;											// clusters below this pixel count are considered small for merging
